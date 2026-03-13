@@ -20,8 +20,7 @@ COLUMN_MAP = {
     'MkUp ':        'markup_pct',
 }
  
-DROP_COLS = ['Unnamed: 10', 'Unnamed: 13']  # Empty merged-cell columns
- 
+DROP_COLS = ['Unnamed: 10', 'Unnamed: 13']  
 def clean_file(filepath, branch_name):
     df = pd.read_excel(filepath)
  
@@ -48,8 +47,12 @@ def clean_file(filepath, branch_name):
     if 'department' in df.columns:
         df['department'] = df['department'].str.strip().str.upper()
  
-    # 7. Keep only rows with a valid SKU code
-    df = df[df['sku_code'].notna()]
+    # 7. Keep only rows with a valid SKU code (if the column exists)
+    if 'sku_code' in df.columns:
+        df = df[df['sku_code'].notna()]
+    else:
+        # If no SKU code, keep rows with valid sales data
+        df = df[df['gross_sales'].notna()]
  
     return df
  

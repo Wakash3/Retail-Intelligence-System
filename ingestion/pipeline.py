@@ -1,30 +1,42 @@
 import sys, traceback
-from extractor.scraper   import run_extraction
+import os
+
 from cleaner.normalise   import clean_all
 from cleaner.validator   import validate
 from loader.db_loader    import load_to_db
- 
+
+RAW_FOLDER = "data/raw"
+CLEAN_FOLDER = "data/clean"
+
 def run_pipeline():
     print('=' * 50)
-    print('STEP 1/3  Extracting data from POS...')
-    run_extraction()                    # Selenium scraper — downloads XLSX files
- 
-    print('STEP 2/3  Cleaning and normalising...')
-    df = clean_all('data/raw', 'data/clean')
- 
-    print('Validating data quality...')
-    validate(df)                        # Raises exception if critical issues found
- 
-    print('STEP 3/3  Loading to database...')
+
+    # STEP 1 — Check raw files
+    if not os.listdir(RAW_FOLDER):
+        print("No raw files found. Extraction would normally run here.")
+        # run_extraction()  # skip since you already have raw files
+    else:
+        print("STEP 1/3  Raw files already available. Skipping extraction...")
+
+    # STEP 2 — Clean & normalise
+    print("STEP 2/3  Cleaning and normalising...")
+    df = clean_all(RAW_FOLDER, CLEAN_FOLDER)
+
+    # STEP 3 — Validate
+    print("Validating data quality...")
+    validate(df)
+
+    # STEP 4 — Load to DB
+    print("STEP 3/3  Loading to database...")
     load_to_db(df)
- 
-    print('Pipeline completed successfully!')
+
+    print("Pipeline completed successfully!")
     print('=' * 50)
- 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     try:
         run_pipeline()
     except Exception as e:
-        print(f'PIPELINE FAILED: {e}')
+        print(f"PIPELINE FAILED: {e}")
         traceback.print_exc()
-        sys.exit(1)  # Non-zero exit triggers CI/CD failure alert
+        sys.exit(1)
