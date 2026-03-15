@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 load_dotenv()
  
 def load_to_db(df):
-    engine = create_engine(os.getenv('DB_URL'))
+    db_url = os.getenv('DB_URL') or 'sqlite:///retail_intelligence.db'
+    engine = create_engine(db_url)
  
     # Load incrementally — append new rows, skip duplicates
     df.to_sql(

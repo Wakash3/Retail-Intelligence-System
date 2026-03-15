@@ -34,9 +34,7 @@ def clean_file(filepath, branch_name):
     df = df.rename(columns=COLUMN_MAP)
  
     # 4. Fill missing branch with folder name
-    if 'branch' not in df.columns or df['branch'].isna().all():
-        df['branch'] = branch_name
-    df['branch'] = df['branch'].fillna(branch_name)
+    df['branch'] = branch_name
  
     # 5. Add source metadata
     df['source_file']  = os.path.basename(filepath)
@@ -45,7 +43,7 @@ def clean_file(filepath, branch_name):
  
     # 6. Normalise department names (uppercase for consistency)
     if 'department' in df.columns:
-        df['department'] = df['department'].str.strip().str.upper()
+        df['department'] = df['department'].astype(str).str.strip().str.upper()
  
     # 7. Keep only rows with a valid SKU code (if the column exists)
     if 'sku_code' in df.columns:
@@ -55,6 +53,7 @@ def clean_file(filepath, branch_name):
         df = df[df['gross_sales'].notna()]
  
     return df
+    print(df.columns)
  
 def clean_all(raw_dir='data/raw', clean_dir='data/clean'):
     os.makedirs(clean_dir, exist_ok=True)
@@ -77,3 +76,4 @@ def clean_all(raw_dir='data/raw', clean_dir='data/clean'):
     combined.to_csv(f'{clean_dir}/pos_sales_clean.csv', index=False)
     print(f'Total clean rows: {len(combined)}')
     return combined
+  

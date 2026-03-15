@@ -14,13 +14,19 @@ def run_pipeline():
     # STEP 1 — Check raw files
     if not os.listdir(RAW_FOLDER):
         print("No raw files found. Extraction would normally run here.")
-        # run_extraction()  # skip since you already have raw files
+        # run_extraction()  
     else:
         print("STEP 1/3  Raw files already available. Skipping extraction...")
 
     # STEP 2 — Clean & normalise
     print("STEP 2/3  Cleaning and normalising...")
     df = clean_all(RAW_FOLDER, CLEAN_FOLDER)
+
+    print("Branches found in dataset:")
+    print(df['branch'].unique())
+
+    print("\nRows per branch:")
+    print(df['branch'].value_counts())
 
     # STEP 3 — Validate
     print("Validating data quality...")

@@ -2,6 +2,7 @@ import pandas as pd
  
 REQUIRED_COLS = ['branch', 'department', 'sku_code', 'product_name',
                   'quantity', 'gross_sales', 'net_sale']
+
  
 def validate(df):
     errors = []
