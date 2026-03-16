@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Install pytest
+        run: pip install pytest
+
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
@@ -55,7 +58,7 @@ jobs:
           psql -h localhost -U rubis_user -d rubis_pos -c "\dt"
           
           echo "=== Verifying unique constraint ==="
-          psql -h localhost -U rubis_user -d rubis_pos -c "\d pos_sales" | grep -A5 "Indexes"
+          psql -h localhost -U rubis_user -d rubis_pos -c "\d pos_sales" | grep -A10 "Indexes"
 
       - name: Run tests
         run: pytest tests/ -v
