@@ -24,3 +24,15 @@ CREATE TABLE IF NOT EXISTS pos_sales (
 CREATE INDEX idx_pos_branch     ON pos_sales(branch);
 CREATE INDEX idx_pos_department ON pos_sales(department);
 CREATE INDEX idx_pos_sku        ON pos_sales(sku_code);
+ALTER TABLE pos_sales
+ADD CONSTRAINT uq_pos_sales_row
+UNIQUE (source_file, source_branch, sku_code, department);
+
+CREATE TABLE IF NOT EXISTS load_log (
+    id SERIAL PRIMARY KEY,
+    run_at TIMESTAMP DEFAULT NOW(),
+    rows_loaded INTEGER,
+    branches_loaded INTEGER,
+    status VARCHAR(20),
+    error_message TEXT
+);
