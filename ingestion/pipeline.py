@@ -10,7 +10,6 @@ CLEAN_FOLDER = "data/clean"
 
 def run_pipeline():
     print('=' * 50)
-
     # STEP 1 — Check raw files
     if not os.listdir(RAW_FOLDER):
         print("No raw files found. Extraction would normally run here.")
