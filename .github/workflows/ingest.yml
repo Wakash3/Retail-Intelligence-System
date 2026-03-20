@@ -1,79 +1,91 @@
-services:
-  postgres:
-    image: postgres:15
-    env:
-      POSTGRES_USER: rubis_user
-      POSTGRES_PASSWORD: rubis2024
-      POSTGRES_DB: rubis_pos
-    ports:
-      - 5432:5432
-    options: >-
-      --health-cmd pg_isready
-      --health-interval 10s
-      --health-timeout 5s
-      --health-retries 5
+name: POS Ingestion Pipeline
 
-steps:
-  - name: Checkout code
-    uses: actions/checkout@v4
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
 
-  - name: Set up Python 3.11
-    uses: actions/setup-python@v5
-    with:
-      python-version: '3.11'
+jobs:
+  test-and-ingest:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: rubis_user
+          POSTGRES_PASSWORD: rubis2024
+          POSTGRES_DB: rubis_pos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
-  - name: Install dependencies
-    run: |
-      python -m pip install --upgrade pip
-      python -m pip install -r requirements.txt
-      python -m pip install pytest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  - name: Apply database schema
-    env:
-      PGPASSWORD: rubis2024
-    run: psql -h localhost -U rubis_user -d rubis_pos -f database/schema.sql
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-  - name: Run tests
-    run: python -m pytest tests/ -v
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pytest
 
-  - name: Set up Chrome
-    uses: browser-actions/setup-chrome@v1
+      - name: Apply database schema
+        env:
+          PGPASSWORD: rubis2024
+        run: psql -h localhost -U rubis_user -d rubis_pos -f database/schema.sql
 
-  - name: Run ingestion pipeline
-    env:
-      POS_URL: ${{ secrets.POS_URL }}
-      POS_USER: ${{ secrets.POS_USER }}
-      POS_PASS: ${{ secrets.POS_PASS }}
-      DB_URL: postgresql://rubis_user:rubis2024@localhost:5432/rubis_pos
-    run: python ingestion/pipeline.py
+      - name: Run tests
+        run: python -m pytest tests/ -v
 
-  - name: Run ML models
-    env:
-      DB_URL: postgresql://rubis_user:rubis2024@localhost:5432/rubis_pos
-    run: python models/run_all_models.py
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v1
 
-  - name: Ensure logs directory exists
-    if: failure()
-    run: mkdir -p logs/
+      - name: Run ingestion pipeline
+        env:
+          POS_URL: ${{ secrets.POS_URL }}
+          POS_USER: ${{ secrets.POS_USER }}
+          POS_PASS: ${{ secrets.POS_PASS }}
+          DB_URL: postgresql://rubis_user:rubis2024@localhost:5432/rubis_pos
+        run: python ingestion/pipeline.py
 
-  - name: Upload logs on failure
-    if: failure()
-    uses: actions/upload-artifact@v4
-    with:
-      name: pipeline-logs
-      path: logs/
+      - name: Run ML models
+        env:
+          DB_URL: postgresql://rubis_user:rubis2024@localhost:5432/rubis_pos
+        run: python models/run_all_models.py
 
-  - name: Send failure alert
-    if: failure()
-    uses: dawidd6/action-send-mail@v3
-    with:
-      server_address: smtp.gmail.com
-      server_port: 465
-      username: ${{ secrets.EMAIL_USER }}
-      password: ${{ secrets.EMAIL_PASS }}
-      subject: 'ALERT: Rubis POS Ingestion FAILED'
-      body: |
-        The daily ingestion pipeline failed.
-        Check logs at: ${{ github.server_url }}/${{ github.repository }}/actions
-      to: your-email@example.com
-      from: Rubis Pipeline Bot
+      - name: Ensure logs directory exists
+        if: failure()
+        run: mkdir -p logs/
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-logs
+          path: logs/
+
+      - name: Send failure alert
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASS }}
+          subject: 'ALERT: Rubis POS Ingestion FAILED'
+          body: |
+            The daily ingestion pipeline failed.
+            Check logs at: ${{ github.server_url }}/${{ github.repository }}/actions
+          to: your-email@example.com
+          from: Rubis Pipeline Bot
