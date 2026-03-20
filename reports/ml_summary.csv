@@ -1,0 +1,4 @@
+model,status,critical_alerts,warning_alerts,run_at
+Anomaly Detection,success,25,123,2026-03-20 11:30:04
+Stockout Prediction,success,133,144,2026-03-20 11:30:04
+Revenue Forecast,success,0,0,2026-03-20 11:30:04
