@@ -54,10 +54,18 @@ def clean_file(filepath, branch_name):
     # 4. Fill missing branch with folder name
     df['branch'] = branch_name
 
-    # 5. Add source metadata
+   
+    # 5. Add source metadata including file date
+    import datetime
+    file_mod_time = os.path.getmtime(filepath)
+    file_date = datetime.date.fromtimestamp(file_mod_time)
+
     df['source_file']   = os.path.basename(filepath)
     df['source_branch'] = branch_name
     df['loaded_at']     = pd.Timestamp.now()
+    df['sales_date']    = file_date
+    df['sales_month']   = file_date.strftime('%Y-%m')
+    df['sales_year']    = file_date.year
 
     # 6. Normalise department names (uppercase for consistency)
     if 'department' in df.columns:

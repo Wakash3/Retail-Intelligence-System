@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS pos_sales (
     markup_pct           NUMERIC(12,4),
     source_file          VARCHAR(255),
     source_branch        VARCHAR(100),
+    sales_date           DATE,
+    sales_month          VARCHAR(7),
+    sales_year           INTEGER,
     loaded_at            TIMESTAMP DEFAULT NOW(),
     CONSTRAINT uq_pos_sales_row UNIQUE (source_file, source_branch, sku_code, department)
 );

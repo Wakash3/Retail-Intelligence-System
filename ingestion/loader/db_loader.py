@@ -37,13 +37,15 @@ def load_to_db(df):
                     branch, department, class, sku_code, product_name,
                     quantity, gross_sales, discount, sales_after_discount,
                     vat_amount, net_sale, cost_ex_vat, net_contribution,
-                    margin_pct, markup_pct, source_file, source_branch, loaded_at
+                    margin_pct, markup_pct, source_file, source_branch,
+                    sales_date, sales_month, sales_year, loaded_at
                 )
                 SELECT
                     branch, department, class, sku_code, product_name,
                     quantity, gross_sales, discount, sales_after_discount,
                     vat_amount, net_sale, cost_ex_vat, net_contribution,
-                    margin_pct, markup_pct, source_file, source_branch, loaded_at
+                    margin_pct, markup_pct, source_file, source_branch,
+                    sales_date, sales_month, sales_year, loaded_at
                 FROM pos_sales_staging
                 ON CONFLICT (source_file, source_branch, sku_code, department)
                 DO NOTHING;
