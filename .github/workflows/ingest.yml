@@ -44,6 +44,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pip install pytest
+           python -m pip install joblib scikit-learn 
 
       - name: Apply database schema
         env:
