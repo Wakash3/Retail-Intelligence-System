@@ -9,14 +9,14 @@ import pandas as pd
 
 load_dotenv()
 
-app = FastAPI(title="Rubis POS API", version="1.0.0")
+app = FastAPI(title="Retail Intelligence System", version="1.0.0")
 
 def get_engine():
     return create_engine(os.getenv('DB_URL'))
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "message": "Rubis POS API is running"}
+    return {"status": "ok", "message": "Retail Intelligence System is running"}
 
 @app.get("/branches")
 def get_branch_performance():
