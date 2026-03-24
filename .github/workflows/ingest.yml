@@ -93,5 +93,5 @@ jobs:
           body: |
             The daily ingestion pipeline failed.
             Check logs at: ${{ github.server_url }}/${{ github.repository }}/actions
-          to: your-email@example.com
+          to: dazliliankwamboka@gmail.com
           from: Rubis Pipeline Bot

@@ -5,3 +5,61 @@ __pycache__/
 *.pyo
 dataenv/
 dashboard/* .pbix
+# .gitignore — Rubis Intelligence
+
+# ── SECRETS (CRITICAL — never commit these) ──
+.env
+*.env
+.env.*
+!.env.example
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Logs ──
+logs/
+*.log
+
+# ── Database ──
+*.db
+*.sqlite3
+*.sql.bak
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+
+# ── Data files (may contain PII) ──
+data/raw/
+data/processed/
+*.csv
+*.xlsx
+*.parquet
+
+# ── Node (frontend) ──
+node_modules/
+.next/
+out/
+.npm
+
+# ── Test artifacts ──
+.pytest_cache/
+.coverage
+htmlcov/

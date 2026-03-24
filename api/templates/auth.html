@@ -3,12 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.anthropic.com; img-src 'self' data:;">
     <title>Rubis Intelligence — Login</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', system-ui, sans-serif;
             background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
             min-height: 100vh;
             display: flex;
@@ -19,396 +21,244 @@
 
         .container {
             display: flex;
-            width: 900px;
+            width: 920px;
             min-height: 580px;
             border-radius: 20px;
             overflow: hidden;
             box-shadow: 0 25px 60px rgba(0,0,0,0.5);
         }
 
-        /* LEFT PANEL */
+        /* ── LEFT PANEL ── */
         .left-panel {
-            width: 45%;
+            width: 42%;
             background: linear-gradient(135deg, #e63946, #c1121f);
-            padding: 50px 40px;
+            padding: 50px 38px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
         }
 
-        .brand h1 {
-            font-size: 28px;
-            font-weight: 700;
-            letter-spacing: 1px;
-        }
+        .brand h1 { font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
+        .brand p  { font-size: 12px; opacity: 0.8; margin-top: 5px; }
 
-        .brand p {
-            font-size: 13px;
-            opacity: 0.8;
-            margin-top: 5px;
-        }
-
-        .system-info h2 {
-            font-size: 20px;
-            margin-bottom: 15px;
-            font-weight: 600;
-        }
+        .system-info h2 { font-size: 17px; margin-bottom: 16px; font-weight: 600; }
 
         .feature {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 10px;
             margin-bottom: 12px;
             font-size: 13px;
-            opacity: 0.9;
+            opacity: 0.92;
+            line-height: 1.4;
         }
 
         .feature-icon {
-            width: 30px;
-            height: 30px;
+            width: 28px; height: 28px;
             background: rgba(255,255,255,0.2);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            flex-shrink: 0;
+            border-radius: 7px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; flex-shrink: 0; margin-top: 1px;
         }
 
         .chatbot-btn {
-            background: rgba(255,255,255,0.2);
-            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.18);
+            border: 1px solid rgba(255,255,255,0.35);
             color: #fff;
-            padding: 12px 20px;
+            padding: 12px 18px;
             border-radius: 10px;
             cursor: pointer;
             font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s;
+            display: flex; align-items: center; gap: 8px;
+            transition: all 0.25s;
             width: 100%;
         }
+        .chatbot-btn:hover { background: rgba(255,255,255,0.28); }
 
-        .chatbot-btn:hover {
-            background: rgba(255,255,255,0.3);
-        }
-
-        /* RIGHT PANEL */
+        /* ── RIGHT PANEL ── */
         .right-panel {
-            width: 55%;
+            width: 58%;
             background: #fff;
-            padding: 50px 45px;
+            padding: 48px 44px;
             color: #333;
             display: flex;
             flex-direction: column;
             justify-content: center;
         }
 
-        .tabs {
-            display: flex;
-            gap: 0;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #eee;
-        }
-
+        .tabs { display: flex; margin-bottom: 28px; border-bottom: 2px solid #eee; }
         .tab {
-            padding: 10px 25px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            color: #999;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
+            padding: 10px 22px; cursor: pointer;
+            font-size: 14px; font-weight: 500; color: #999;
+            border-bottom: 2px solid transparent; margin-bottom: -2px;
             transition: all 0.2s;
         }
+        .tab.active { color: #e63946; border-bottom-color: #e63946; }
 
-        .tab.active {
-            color: #e63946;
-            border-bottom-color: #e63946;
-        }
-
-        .form-group {
-            margin-bottom: 18px;
-        }
-
+        .form-group { margin-bottom: 16px; }
         .form-group label {
-            display: block;
-            font-size: 12px;
-            font-weight: 600;
-            color: #666;
-            margin-bottom: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            display: block; font-size: 11px; font-weight: 600;
+            color: #666; margin-bottom: 5px;
+            text-transform: uppercase; letter-spacing: 0.6px;
         }
-
         .form-group input {
-            width: 100%;
-            padding: 12px 15px;
-            border: 1.5px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 14px;
-            color: #333;
+            width: 100%; padding: 11px 14px;
+            border: 1.5px solid #e0e0e0; border-radius: 10px;
+            font-size: 14px; color: #333; outline: none;
             transition: border-color 0.2s;
-            outline: none;
+        }
+        .form-group input:focus { border-color: #e63946; }
+
+        .password-wrapper { position: relative; }
+        .toggle-pass {
+            position: absolute; right: 12px; top: 50%;
+            transform: translateY(-50%);
+            background: none; border: none; cursor: pointer;
+            font-size: 16px; color: #999; padding: 4px;
         }
 
-        .form-group input:focus {
-            border-color: #e63946;
-        }
+        .strength-bar { height: 4px; border-radius: 2px; margin-top: 6px; background: #eee; overflow: hidden; }
+        .strength-fill { height: 100%; width: 0; border-radius: 2px; transition: all 0.3s; }
 
         .btn-primary {
-            width: 100%;
-            padding: 13px;
+            width: 100%; padding: 12px;
             background: linear-gradient(135deg, #e63946, #c1121f);
-            color: #fff;
-            border: none;
-            border-radius: 10px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.2s;
-            margin-top: 5px;
+            color: #fff; border: none; border-radius: 10px;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            transition: opacity 0.2s; margin-top: 4px;
         }
-
         .btn-primary:hover { opacity: 0.9; }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        .error-msg {
-            background: #fff5f5;
-            color: #e63946;
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 13px;
-            margin-bottom: 15px;
-            display: none;
-            border: 1px solid #fecdd3;
+        .alert {
+            padding: 10px 14px; border-radius: 8px;
+            font-size: 13px; margin-bottom: 14px; display: none;
         }
+        .alert-error  { background: #fff5f5; color: #c1121f; border: 1px solid #fecdd3; }
+        .alert-success{ background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 
-        .success-msg {
-            background: #f0fdf4;
-            color: #16a34a;
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 13px;
-            margin-bottom: 15px;
-            display: none;
-            border: 1px solid #bbf7d0;
-        }
+        .forgot-link { text-align: right; margin-top: -8px; margin-bottom: 14px; }
+        .forgot-link a { font-size: 12px; color: #e63946; text-decoration: none; }
 
-        .forgot-link {
-            text-align: right;
-            margin-top: -10px;
-            margin-bottom: 15px;
-        }
+        .hidden { display: none !important; }
 
-        .forgot-link a {
-            font-size: 12px;
-            color: #e63946;
-            text-decoration: none;
-        }
-
-        /* CHATBOT */
+        /* ── CHATBOT OVERLAY ── */
         .chatbot-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.6);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.55); z-index: 1000;
+            align-items: center; justify-content: center;
         }
-
         .chatbot-overlay.active { display: flex; }
 
         .chatbot-window {
-            background: #fff;
-            border-radius: 20px;
-            width: 420px;
-            max-height: 600px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            background: #fff; border-radius: 20px;
+            width: 440px; height: 580px;
+            display: flex; flex-direction: column;
+            overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
 
         .chatbot-header {
             background: linear-gradient(135deg, #e63946, #c1121f);
-            padding: 20px 25px;
-            color: #fff;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            padding: 18px 22px; color: #fff;
+            display: flex; justify-content: space-between; align-items: center;
         }
-
-        .chatbot-header h3 { font-size: 16px; }
-        .chatbot-header p { font-size: 12px; opacity: 0.8; }
+        .chatbot-header h3 { font-size: 15px; }
+        .chatbot-header p  { font-size: 11px; opacity: 0.8; margin-top: 2px; }
 
         .close-btn {
-            background: rgba(255,255,255,0.2);
-            border: none;
-            color: #fff;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 16px;
+            background: rgba(255,255,255,0.2); border: none;
+            color: #fff; width: 28px; height: 28px;
+            border-radius: 50%; cursor: pointer; font-size: 14px;
+            display: flex; align-items: center; justify-content: center;
         }
 
         .chatbot-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            background: #f8f9fa;
+            flex: 1; overflow-y: auto; padding: 18px;
+            background: #f8f9fa; display: flex; flex-direction: column; gap: 12px;
         }
 
-        .message {
-            margin-bottom: 15px;
-            display: flex;
-            gap: 10px;
+        .message { display: flex; gap: 8px; max-width: 90%; }
+        .message.user { flex-direction: row-reverse; align-self: flex-end; }
+        .message.bot  { align-self: flex-start; }
+
+        .avatar {
+            width: 30px; height: 30px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; flex-shrink: 0;
         }
+        .bot-avatar  { background: #e63946; color: #fff; }
+        .user-avatar { background: #1a1a2e; color: #fff; }
 
-        .message.user { flex-direction: row-reverse; }
-
-        .message-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            flex-shrink: 0;
+        .bubble {
+            padding: 9px 13px; border-radius: 14px;
+            font-size: 13px; line-height: 1.55; white-space: pre-wrap;
         }
+        .bot-bubble  { background: #fff; color: #333; border: 1px solid #e5e7eb; border-radius: 14px 14px 14px 2px; }
+        .user-bubble { background: #e63946; color: #fff; border-radius: 14px 14px 2px 14px; }
 
-        .bot-avatar { background: #e63946; color: #fff; }
-        .user-avatar { background: #333; color: #fff; }
-
-        .message-bubble {
-            max-width: 75%;
-            padding: 10px 14px;
-            border-radius: 12px;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-
-        .bot-bubble {
-            background: #fff;
-            color: #333;
-            border: 1px solid #e0e0e0;
-            border-radius: 12px 12px 12px 0;
-        }
-
-        .user-bubble {
-            background: #e63946;
-            color: #fff;
-            border-radius: 12px 12px 0 12px;
-        }
-
-        .quick-replies {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-top: 8px;
-        }
-
-        .quick-reply {
-            background: #fff;
-            border: 1px solid #e63946;
-            color: #e63946;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            cursor: pointer;
+        .quick-replies { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+        .qr {
+            background: #fff; border: 1px solid #e63946;
+            color: #e63946; padding: 4px 11px;
+            border-radius: 20px; font-size: 11px; cursor: pointer;
             transition: all 0.2s;
         }
+        .qr:hover { background: #e63946; color: #fff; }
 
-        .quick-reply:hover {
-            background: #e63946;
-            color: #fff;
+        .typing-dots { display: flex; gap: 4px; padding: 10px 14px; }
+        .typing-dots span {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #ccc; animation: blink 1.2s infinite;
         }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes blink { 0%,80%,100%{opacity:0.3} 40%{opacity:1} }
 
-        .chatbot-input {
-            padding: 15px 20px;
-            border-top: 1px solid #eee;
-            display: flex;
-            gap: 10px;
-            background: #fff;
+        .chatbot-footer {
+            padding: 12px 16px; border-top: 1px solid #eee;
+            display: flex; gap: 8px; background: #fff;
         }
-
-        .chatbot-input input {
-            flex: 1;
-            padding: 10px 15px;
-            border: 1.5px solid #e0e0e0;
-            border-radius: 25px;
-            font-size: 13px;
-            outline: none;
+        .chatbot-footer input {
+            flex: 1; padding: 9px 14px;
+            border: 1.5px solid #e0e0e0; border-radius: 22px;
+            font-size: 13px; outline: none;
         }
-
-        .chatbot-input input:focus { border-color: #e63946; }
-
+        .chatbot-footer input:focus { border-color: #e63946; }
         .send-btn {
-            background: #e63946;
-            border: none;
-            color: #fff;
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 16px;
+            background: #e63946; border: none; color: #fff;
+            width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+            font-size: 14px; display: flex; align-items: center; justify-content: center;
         }
-
-        .typing {
-            display: flex;
-            gap: 4px;
-            padding: 10px 14px;
-            background: #fff;
-            border-radius: 12px;
-            border: 1px solid #e0e0e0;
-            width: fit-content;
-        }
-
-        .typing span {
-            width: 6px;
-            height: 6px;
-            background: #999;
-            border-radius: 50%;
-            animation: bounce 1.2s infinite;
-        }
-
-        .typing span:nth-child(2) { animation-delay: 0.2s; }
-        .typing span:nth-child(3) { animation-delay: 0.4s; }
-
-        @keyframes bounce {
-            0%, 60%, 100% { transform: translateY(0); }
-            30% { transform: translateY(-6px); }
-        }
-
-        .hidden { display: none; }
+        .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- LEFT PANEL -->
+    <!-- ── LEFT ── -->
     <div class="left-panel">
         <div class="brand">
-            <h1>🔴 Retail Intelligence System</h1>
-            <p>Retail Analytics & Intelligence Platform</p>
+            <h1>🔴 Rubis Intelligence</h1>
+            <p>Retail Analytics &amp; Intelligence Platform</p>
         </div>
 
         <div class="system-info">
             <h2>What this system does</h2>
             <div class="feature">
                 <div class="feature-icon">📊</div>
-                <span>Live KPI tracking across 5 branches</span>
+                <span>Live KPI tracking across all branches in real time</span>
             </div>
             <div class="feature">
                 <div class="feature-icon">📦</div>
-                <span>Product intelligence & recommendations</span>
+                <span>Stockout prediction &amp; product recommendations</span>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⚠️</div>
+                <span>Margin anomaly detection &amp; WhatsApp alerts</span>
             </div>
             <div class="feature">
                 <div class="feature-icon">🔄</div>
-                <span>Daily automated pipeline at 6AM</span>
+                <span>Automated daily pipeline with PDF reports</span>
             </div>
         </div>
 
@@ -417,93 +267,110 @@
         </button>
     </div>
 
-    <!-- RIGHT PANEL -->
+    <!-- ── RIGHT ── -->
     <div class="right-panel">
         <div class="tabs">
             <div class="tab active" onclick="switchTab('login')">Sign In</div>
             <div class="tab" onclick="switchTab('register')">Register</div>
         </div>
 
-        <div id="error-msg" class="error-msg"></div>
-        <div id="success-msg" class="success-msg"></div>
+        <div id="alert-error"   class="alert alert-error"></div>
+        <div id="alert-success" class="alert alert-success"></div>
 
-        <!-- LOGIN FORM -->
+        <!-- LOGIN -->
         <div id="login-form">
             <div class="form-group">
                 <label>Email Address</label>
-                <input type="email" id="login-email" placeholder="you@rubiskenya.com">
+                <input type="email" id="login-email" placeholder="you@rubiskenya.com"
+                       autocomplete="email">
             </div>
             <div class="form-group">
                 <label>Password</label>
-                <input type="password" id="login-password" placeholder="Enter your password">
+                <div class="password-wrapper">
+                    <input type="password" id="login-password" placeholder="Your password"
+                           autocomplete="current-password">
+                    <button class="toggle-pass" type="button" onclick="togglePass('login-password', this)">👁</button>
+                </div>
             </div>
             <div class="forgot-link">
                 <a href="#" onclick="switchTab('forgot')">Forgot password?</a>
             </div>
-            <button class="btn-primary" onclick="handleLogin()">Sign In</button>
+            <button class="btn-primary" id="login-btn" onclick="handleLogin()">Sign In</button>
         </div>
 
-        <!-- REGISTER FORM -->
+        <!-- REGISTER -->
         <div id="register-form" class="hidden">
             <div class="form-group">
                 <label>Full Name</label>
-                <input type="text" id="reg-name" placeholder="Your full name">
+                <input type="text" id="reg-name" placeholder="Your full name" autocomplete="name">
             </div>
             <div class="form-group">
                 <label>Email Address</label>
-                <input type="email" id="reg-email" placeholder="you@rubiskenya.com">
+                <input type="email" id="reg-email" placeholder="you@rubiskenya.com" autocomplete="email">
             </div>
             <div class="form-group">
                 <label>Password</label>
-                <input type="password" id="reg-password" placeholder="Min 8 characters">
+                <div class="password-wrapper">
+                    <input type="password" id="reg-password" placeholder="Min 8 chars, 1 uppercase, 1 number"
+                           oninput="checkStrength(this.value)"
+                           autocomplete="new-password">
+                    <button class="toggle-pass" type="button" onclick="togglePass('reg-password', this)">👁</button>
+                </div>
+                <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
             </div>
-            <button class="btn-primary" onclick="handleRegister()">Create Account</button>
+            <button class="btn-primary" id="reg-btn" onclick="handleRegister()">Create Account</button>
         </div>
 
-        <!-- FORGOT PASSWORD FORM -->
+        <!-- FORGOT PASSWORD -->
         <div id="forgot-form" class="hidden">
+            <p style="font-size:13px;color:#666;margin-bottom:18px;">
+                Enter your email and we'll send you a link to reset your password.
+            </p>
             <div class="form-group">
                 <label>Email Address</label>
                 <input type="email" id="forgot-email" placeholder="you@rubiskenya.com">
             </div>
             <button class="btn-primary" onclick="handleForgot()">Send Reset Link</button>
-            <p style="text-align:center;margin-top:15px;font-size:13px;color:#999">
-                <a href="#" onclick="switchTab('login')" style="color:#e63946">Back to login</a>
+            <p style="text-align:center;margin-top:14px;font-size:13px;color:#999">
+                <a href="#" onclick="switchTab('login')" style="color:#e63946">Back to sign in</a>
             </p>
         </div>
     </div>
 </div>
 
-<!-- CHATBOT -->
+<!-- ── CHATBOT ── -->
 <div class="chatbot-overlay" id="chatbot-overlay" onclick="closeChatbotOutside(event)">
     <div class="chatbot-window">
         <div class="chatbot-header">
             <div>
-                <h3>🤖 Nuru</h3>
-                <p>Ask me anything about the system</p>
+                <h3>🤖 Nuru — System Assistant</h3>
+                <p>Ask me anything about Rubis Intelligence</p>
             </div>
             <button class="close-btn" onclick="closeChatbot()">✕</button>
         </div>
         <div class="chatbot-messages" id="chatbot-messages"></div>
-        <div class="chatbot-input">
+        <div class="chatbot-footer">
             <input type="text" id="chat-input" placeholder="Ask a question..."
-                   onkeypress="if(event.key==='Enter') sendMessage()">
-            <button class="send-btn" onclick="sendMessage()">➤</button>
+                   onkeydown="if(event.key==='Enter' && !event.shiftKey) sendMessage()">
+            <button class="send-btn" id="send-btn" onclick="sendMessage()">➤</button>
         </div>
     </div>
 </div>
 
 <script>
-const API_URL = 'http://localhost:8000';
+// ─────────────────────────────────────────
+// CONFIG — API URL read from meta or default
+// ─────────────────────────────────────────
+const API_URL = document.querySelector('meta[name="api-url"]')?.content || '';
 
 // ─────────────────────────────────────────
 // TAB SWITCHING
 // ─────────────────────────────────────────
 function switchTab(tab) {
-    document.getElementById('login-form').classList.add('hidden');
-    document.getElementById('register-form').classList.add('hidden');
-    document.getElementById('forgot-form').classList.add('hidden');
+    ['login-form','register-form','forgot-form'].forEach(id =>
+        document.getElementById(id).classList.add('hidden'));
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    clearAlerts();
 
     if (tab === 'login') {
         document.getElementById('login-form').classList.remove('hidden');
@@ -514,131 +381,177 @@ function switchTab(tab) {
     } else if (tab === 'forgot') {
         document.getElementById('forgot-form').classList.remove('hidden');
     }
-    clearMessages();
 }
 
-function showError(msg) {
-    const el = document.getElementById('error-msg');
+function showAlert(type, msg) {
+    clearAlerts();
+    const el = document.getElementById(`alert-${type}`);
     el.textContent = msg;
     el.style.display = 'block';
-    document.getElementById('success-msg').style.display = 'none';
+}
+function clearAlerts() {
+    ['alert-error','alert-success'].forEach(id => {
+        document.getElementById(id).style.display = 'none';
+    });
 }
 
-function showSuccess(msg) {
-    const el = document.getElementById('success-msg');
-    el.textContent = msg;
-    el.style.display = 'block';
-    document.getElementById('error-msg').style.display = 'none';
+// ─────────────────────────────────────────
+// PASSWORD UTILITIES
+// ─────────────────────────────────────────
+function togglePass(inputId, btn) {
+    const input = document.getElementById(inputId);
+    input.type = input.type === 'password' ? 'text' : 'password';
+    btn.textContent = input.type === 'password' ? '👁' : '🙈';
 }
 
-function clearMessages() {
-    document.getElementById('error-msg').style.display = 'none';
-    document.getElementById('success-msg').style.display = 'none';
+function checkStrength(pw) {
+    const fill = document.getElementById('strength-fill');
+    let score = 0;
+    if (pw.length >= 8)            score++;
+    if (/[A-Z]/.test(pw))          score++;
+    if (/[0-9]/.test(pw))          score++;
+    if (/[^A-Za-z0-9]/.test(pw))   score++;
+    const pct   = (score / 4) * 100;
+    const color = ['#ef4444','#f97316','#eab308','#22c55e'][score - 1] || '#eee';
+    fill.style.width = pct + '%';
+    fill.style.background = color;
+}
+
+// ─────────────────────────────────────────
+// CLIENT-SIDE INPUT VALIDATION
+// ─────────────────────────────────────────
+function validateEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 // ─────────────────────────────────────────
 // AUTH HANDLERS
+// Tokens are stored in memory only — never in localStorage
+// The server sets an httpOnly cookie for persistent sessions
 // ─────────────────────────────────────────
+let accessToken = null;
+
 async function handleLogin() {
-    const email = document.getElementById('login-email').value;
+    const email    = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
 
-    if (!email || !password) return showError('Please fill in all fields.');
+    if (!email || !password)         return showAlert('error', 'Please fill in all fields.');
+    if (!validateEmail(email))       return showAlert('error', 'Please enter a valid email address.');
 
-    const formData = new FormData();
-    formData.append('username', email);
-    formData.append('password', password);
+    const btn = document.getElementById('login-btn');
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
 
     try {
-        const res = await fetch(`${API_URL}/auth/login`, {
+        const formData = new FormData();
+        formData.append('username', email);
+        formData.append('password', password);
+
+        const res  = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
-            body: formData
+            body: formData,
+            credentials: 'include'   // include httpOnly cookie
         });
         const data = await res.json();
 
         if (res.ok) {
-            localStorage.setItem('rubis_token', data.access_token);
-            showSuccess('Login successful! Redirecting...');
-            setTimeout(() => window.location.href = '/dashboard', 1500);
+            // Store in memory only — NOT localStorage (XSS risk)
+            accessToken = data.access_token;
+            showAlert('success', 'Login successful! Redirecting…');
+            setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
         } else {
-            showError(data.detail || 'Login failed.');
+            showAlert('error', data.detail || 'Login failed. Please check your credentials.');
         }
     } catch (e) {
-        showError('Connection error. Please try again.');
+        showAlert('error', 'Connection error. Please try again.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
     }
 }
 
 async function handleRegister() {
-    const name = document.getElementById('reg-name').value;
-    const email = document.getElementById('reg-email').value;
+    const name     = document.getElementById('reg-name').value.trim();
+    const email    = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-password').value;
 
-    if (!name || !email || !password) return showError('Please fill in all fields.');
-    if (password.length < 8) return showError('Password must be at least 8 characters.');
+    if (!name || !email || !password) return showAlert('error', 'Please fill in all fields.');
+    if (!validateEmail(email))         return showAlert('error', 'Please enter a valid email address.');
+    if (password.length < 8)           return showAlert('error', 'Password must be at least 8 characters.');
+    if (!/[A-Z]/.test(password))       return showAlert('error', 'Password must contain at least one uppercase letter.');
+    if (!/[0-9]/.test(password))       return showAlert('error', 'Password must contain at least one number.');
+
+    const btn = document.getElementById('reg-btn');
+    btn.disabled = true; btn.textContent = 'Creating account…';
 
     try {
-        const res = await fetch(`${API_URL}/auth/register`, {
+        const res  = await fetch(`${API_URL}/auth/register`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({email, password, full_name: name})
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, full_name: name })
+            // NOTE: role is NOT sent — server always assigns "viewer"
         });
         const data = await res.json();
 
         if (res.ok) {
-            showSuccess('Account created! Please check your email to verify.');
+            showAlert('success', 'Account created! Check your email to verify before logging in.');
             switchTab('login');
         } else {
-            showError(data.detail || 'Registration failed.');
+            showAlert('error', data.detail || 'Registration failed.');
         }
     } catch (e) {
-        showError('Connection error. Please try again.');
+        showAlert('error', 'Connection error. Please try again.');
+    } finally {
+        btn.disabled = false; btn.textContent = 'Create Account';
     }
 }
 
 async function handleForgot() {
-    const email = document.getElementById('forgot-email').value;
-    if (!email) return showError('Please enter your email.');
+    const email = document.getElementById('forgot-email').value.trim();
+    if (!email || !validateEmail(email)) return showAlert('error', 'Please enter a valid email address.');
 
     try {
-        const res = await fetch(`${API_URL}/auth/forgot-password?email=${email}`, {
+        await fetch(`${API_URL}/auth/forgot-password?email=${encodeURIComponent(email)}`, {
             method: 'POST'
         });
-        showSuccess('If that email exists, a reset link has been sent.');
+        // Always show the same message (anti-enumeration)
+        showAlert('success', 'If that email is registered, a reset link has been sent.');
     } catch (e) {
-        showError('Connection error. Please try again.');
+        showAlert('error', 'Connection error. Please try again.');
     }
 }
 
 // ─────────────────────────────────────────
-// CHATBOT
+// CHATBOT (Claude-powered via backend proxy)
+// The frontend calls your own backend /chat endpoint
+// Your backend holds the Anthropic API key — it is never exposed here
 // ─────────────────────────────────────────
-const knowledgeBase = {
-    "what is retail intelligence system": "Retail Intelligence system is a retail analytics platform built for mid-size to small retail stores in Kenya. It automatically extracts POS data from different branches daily, cleans it, loads it into a database, and runs ML models to detect anomalies, predict stockouts, and forecast revenue.",
-    "how does it work": "The system runs a daily pipeline at 6AM Nairobi time. It gets data from the POS system, analyses it and represents anomaly detection, stockout prediction, and revenue forecasting results. The insights are then accessible via a web dashboard.",
-    "what branches": "The system covers various Retail branches: Thome, Membley, Jogoo Road, Kingo, and Tigoni.",
-    "how to login": "Enter your registered email and password on the Sign In tab. If you don't have an account, click Register to create one. After registering, verify your email before logging in. If you forget your password, use the Forgot password link to receive a reset link via email.",
-    "default": "I can answer questions about the system. Try asking: 'How does it work?', 'What branches are covered?', 'What are the top products?', or 'How do I login?'"
-};
+const SYSTEM_PROMPT = `You are Nuru, a friendly and knowledgeable assistant for the Rubis Intelligence retail analytics platform. 
+You help new users understand what the system does and how to use it.
 
-function getBotResponse(input) {
-    const lower = input.toLowerCase();
-    for (const [key, value] of Object.entries(knowledgeBase)) {
-        if (lower.includes(key) || key.split(' ').some(w => w.length > 4 && lower.includes(w))) {
-            return value;
-        }
-    }
-    return knowledgeBase["default"];
-}
+About the system:
+- Rubis Intelligence is a retail analytics platform for Rubis Energy Kenya petrol station convenience stores
+- It covers branches: Thome, Membley, Jogoo Road, Kingo, and Tigoni
+- A daily automated pipeline runs at 6AM Nairobi time, extracting POS sales data
+- Features: live KPI dashboard, anomaly detection, stockout prediction, revenue forecasting, product recommendations
+- Users have roles: admin (full access), analyst (read + anomalies), viewer (basic KPIs), branch_manager (own branch only)
+- The system sends WhatsApp/email alerts when margin drops below 5%, stockout risk is detected, or a branch misses revenue targets
+- A PDF report is emailed to management every morning with previous day's KPIs and alerts
+
+Keep answers concise, friendly and helpful. If asked about login issues, guide them through the steps. 
+Do not make up information not listed above.`;
+
+let chatHistory = [];
+let isTyping = false;
 
 function openChatbot() {
     document.getElementById('chatbot-overlay').classList.add('active');
     if (document.getElementById('chatbot-messages').children.length === 0) {
         setTimeout(() => {
-            addBotMessage("👋 Hi! I'm Nuru. I can explain what this system does and how it works.", [
-                "How does it work?",
-                "What branches?",
-                "Top products"
-            ]);
+            appendBotMessage(
+                "👋 Hi! I'm Nuru, your Rubis Intelligence assistant. I can explain what this system does, how to get started, or answer questions about features.\n\nWhat would you like to know?",
+                ["What does this system do?", "How do I log in?", "What roles exist?", "What alerts does it send?"]
+            );
         }, 300);
     }
 }
@@ -648,79 +561,115 @@ function closeChatbot() {
 }
 
 function closeChatbotOutside(e) {
-    if (e.target === document.getElementById('chatbot-overlay')) closeChatbot();
+    if (e.target.id === 'chatbot-overlay') closeChatbot();
 }
 
-function addBotMessage(text, quickReplies = []) {
-    const messages = document.getElementById('chatbot-messages');
-    const div = document.createElement('div');
-    div.className = 'message';
-    div.innerHTML = `
-        <div class="message-avatar bot-avatar">🤖</div>
+function appendBotMessage(text, quickReplies = []) {
+    const container = document.getElementById('chatbot-messages');
+    const wrap = document.createElement('div');
+    wrap.className = 'message bot';
+    wrap.innerHTML = `
+        <div class="avatar bot-avatar">🤖</div>
         <div>
-            <div class="message-bubble bot-bubble">${text}</div>
-            ${quickReplies.length ? `<div class="quick-replies">${quickReplies.map(r =>
-                `<button class="quick-reply" onclick="quickReply('${r}')">${r}</button>`
-            ).join('')}</div>` : ''}
-        </div>
-    `;
-    messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
+            <div class="bubble bot-bubble">${escapeHTML(text)}</div>
+            ${quickReplies.length ? `<div class="quick-replies">${
+                quickReplies.map(r => `<button class="qr" onclick="quickReply('${escapeAttr(r)}')">${escapeHTML(r)}</button>`).join('')
+            }</div>` : ''}
+        </div>`;
+    container.appendChild(wrap);
+    container.scrollTop = container.scrollHeight;
 }
 
-function addUserMessage(text) {
-    const messages = document.getElementById('chatbot-messages');
-    const div = document.createElement('div');
-    div.className = 'message user';
-    div.innerHTML = `
-        <div class="message-avatar user-avatar">👤</div>
-        <div class="message-bubble user-bubble">${text}</div>
-    `;
-    messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
+function appendUserMessage(text) {
+    const container = document.getElementById('chatbot-messages');
+    const wrap = document.createElement('div');
+    wrap.className = 'message user';
+    wrap.innerHTML = `
+        <div class="avatar user-avatar">👤</div>
+        <div class="bubble user-bubble">${escapeHTML(text)}</div>`;
+    container.appendChild(wrap);
+    container.scrollTop = container.scrollHeight;
 }
 
-function addTyping() {
-    const messages = document.getElementById('chatbot-messages');
-    const div = document.createElement('div');
-    div.className = 'message';
-    div.id = 'typing-indicator';
-    div.innerHTML = `
-        <div class="message-avatar bot-avatar">🤖</div>
-        <div class="typing"><span></span><span></span><span></span></div>
-    `;
-    messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
+function showTyping() {
+    const container = document.getElementById('chatbot-messages');
+    const wrap = document.createElement('div');
+    wrap.className = 'message bot'; wrap.id = 'typing-wrap';
+    wrap.innerHTML = `
+        <div class="avatar bot-avatar">🤖</div>
+        <div class="bubble bot-bubble">
+            <div class="typing-dots"><span></span><span></span><span></span></div>
+        </div>`;
+    container.appendChild(wrap);
+    container.scrollTop = container.scrollHeight;
 }
 
 function removeTyping() {
-    const el = document.getElementById('typing-indicator');
+    const el = document.getElementById('typing-wrap');
     if (el) el.remove();
 }
 
-function sendMessage() {
+async function sendMessage() {
+    if (isTyping) return;
     const input = document.getElementById('chat-input');
-    const text = input.value.trim();
+    const text  = input.value.trim();
     if (!text) return;
 
-    addUserMessage(text);
     input.value = '';
-    addTyping();
+    appendUserMessage(text);
+    chatHistory.push({ role: 'user', content: text });
 
-    setTimeout(() => {
+    isTyping = true;
+    document.getElementById('send-btn').disabled = true;
+    showTyping();
+
+    try {
+        // Call your backend proxy — the API key lives server-side only
+        const res = await fetch(`${API_URL}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messages: chatHistory,
+                system: SYSTEM_PROMPT
+            })
+        });
+
         removeTyping();
-        const response = getBotResponse(text);
-        addBotMessage(response);
-    }, 800);
+
+        if (res.ok) {
+            const data = await res.json();
+            const reply = data.reply || "I'm not sure about that. Try asking about the system features or how to log in.";
+            chatHistory.push({ role: 'assistant', content: reply });
+            appendBotMessage(reply);
+        } else {
+            appendBotMessage("Sorry, I'm having trouble responding right now. Please try again shortly.");
+        }
+    } catch (e) {
+        removeTyping();
+        appendBotMessage("Connection issue. Please check your internet and try again.");
+    } finally {
+        isTyping = false;
+        document.getElementById('send-btn').disabled = false;
+        document.getElementById('chatbot-messages').scrollTop = 9999;
+    }
 }
 
 function quickReply(text) {
-    addUserMessage(text);
-    addTyping();
-    setTimeout(() => {
-        removeTyping();
-        addBotMessage(getBotResponse(text));
-    }, 600);
+    document.getElementById('chat-input').value = text;
+    sendMessage();
+}
+
+// ─────────────────────────────────────────
+// XSS HELPERS
+// ─────────────────────────────────────────
+function escapeHTML(str) {
+    return str
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;')
+        .replace(/\n/g,'<br>');
+}
+function escapeAttr(str) {
+    return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 </script>
 </body>
