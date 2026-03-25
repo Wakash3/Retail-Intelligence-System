@@ -36,7 +36,8 @@ def calculate_department_benchmarks(df):
     ]).reset_index()
     benchmarks.columns = ['department', 'dept_avg_margin', 'dept_std_margin',
                           'dept_median_margin', 'dept_product_count']
-    # Fill zero std with small value to avoid division by zero
+   
+   
     benchmarks['dept_std_margin'] = benchmarks['dept_std_margin'].fillna(1).replace(0, 1)
     return benchmarks
 
@@ -49,10 +50,10 @@ def calculate_branch_benchmarks(df):
     return benchmarks
 
 def detect_anomalies(df, dept_benchmarks, branch_benchmarks, z_threshold=-2.0):
-    # Merge department benchmarks
+   
     df = df.merge(dept_benchmarks, on='department', how='left')
 
-    # Calculate Z-score per product within its department
+    #  Z-score per product within its department
     df['z_score'] = (df['margin_pct'] - df['dept_avg_margin']) / df['dept_std_margin']
 
     # Merge branch benchmarks

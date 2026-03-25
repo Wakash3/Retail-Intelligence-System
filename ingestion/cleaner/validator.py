@@ -8,7 +8,7 @@ def validate(df):
     errors = []
     warnings = []
  
-    # Check required columns exist
+    
     for col in REQUIRED_COLS:
         if col not in df.columns:
             errors.append(f'MISSING COLUMN: {col}')

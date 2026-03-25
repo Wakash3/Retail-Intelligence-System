@@ -111,7 +111,7 @@ def clear_current_filter():
     except Exception as e:
         print(f"Could not clear filter: {e}")
 
-driver = webdriver.Chrome()  # Make sure ChromeDriver is in your PATH or same folder
+driver = webdriver.Chrome()  
 try:
     driver.maximize_window()
     
@@ -121,15 +121,15 @@ try:
     driver.get(BASE_URL)
     time.sleep(15)
     
-    # Check if already logged in or need manual intervention
+   
     try:
-        # Wait a bit for page to fully load
+        
         WebDriverWait(driver, 10).until(
             lambda d: "NexxRetail" in d.title
         )
         print("Page loaded successfully")
         
-        # Check if login form is present
+       
         try:
             WebDriverWait(driver, 5).until(
                 EC.presence_of_element_located((By.ID, "exampleInputEmail1"))

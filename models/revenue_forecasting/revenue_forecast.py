@@ -1,8 +1,4 @@
-# models/revenue_forecasting/revenue_forecast.py
-# Rubis POS — Revenue Forecasting Model
-# Forecasts branch revenue targets and flags underperforming branches
-# NOTE: With one snapshot, this builds the framework and baseline.
-# Accuracy improves as more monthly data is loaded into the pipeline.
+
 
 import pandas as pd
 import numpy as np

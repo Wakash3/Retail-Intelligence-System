@@ -32,30 +32,30 @@ DROP_COLS = ['Unnamed: 10', 'Unnamed: 13']
 def clean_file(filepath, branch_name):
     df = pd.read_excel(filepath)
 
-    # Skip files with no usable product data (summary-only exports)
+    
     if 'Code' not in df.columns and 'Unnamed: 0' not in df.columns and 'GROUP' not in df.columns:
         return pd.DataFrame()
 
-    # 1. Drop empty rows (POS export artifact)
+    
     df = df.dropna(how='all')
 
-    # 2. Drop junk columns
+    
     df = df.drop(columns=[c for c in DROP_COLS if c in df.columns])
 
-    # 3. Rename columns to standard names
+    
     df = df.rename(columns=COLUMN_MAP)
 
-    # 3b. For airtime-type files, use CLASS as product_name and sku_code if missing
+    
     if 'product_name' not in df.columns and 'class' in df.columns:
         df['product_name'] = df['class']
     if 'sku_code' not in df.columns and 'class' in df.columns:
         df['sku_code'] = df['class']
 
-    # 4. Fill missing branch with folder name
+    
     df['branch'] = branch_name
 
    
-    # 5. Add source metadata including file date
+    
     import datetime
     file_mod_time = os.path.getmtime(filepath)
     file_date = datetime.date.fromtimestamp(file_mod_time)
@@ -67,25 +67,25 @@ def clean_file(filepath, branch_name):
     df['sales_month']   = file_date.strftime('%Y-%m')
     df['sales_year']    = file_date.year
 
-    # 6. Normalise department names (uppercase for consistency)
+    
     if 'department' in df.columns:
         df['department'] = df['department'].astype(str).str.strip().str.upper()
 
-    # 7. Keep only rows with a valid SKU code
+    
     if 'sku_code' in df.columns:
         df = df[df['sku_code'].notna()]
     else:
         df = df[df['gross_sales'].notna()]
 
-    # 7b. Drop rows with no net_sale (incomplete POS export rows)
+    
     if 'net_sale' in df.columns:
         df = df[df['net_sale'].notna()]
 
-    # 7c. Drop rows with no product_name (summary/header rows)
+    
     if 'product_name' in df.columns:
         df = df[df['product_name'].notna()]
 
-    # 8. Replace infinity values with None (division by zero in POS export)
+    
     df = df.replace([np.inf, -np.inf], np.nan)
 
     return df

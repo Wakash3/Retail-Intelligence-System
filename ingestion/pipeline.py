@@ -10,14 +10,14 @@ CLEAN_FOLDER = "data/clean"
 
 def run_pipeline():
     print('=' * 50)
-    # STEP 1 — Check raw files
+    # Checks raw files
     if not os.listdir(RAW_FOLDER):
         print("No raw files found. Extraction would normally run here.")
         # run_extraction()  
     else:
         print("STEP 1/3  Raw files already available. Skipping extraction...")
 
-    # STEP 2 — Clean & normalise
+    #  Clean & normalise
     print("STEP 2/3  Cleaning and normalising...")
     df = clean_all(RAW_FOLDER, CLEAN_FOLDER)
 
@@ -27,11 +27,11 @@ def run_pipeline():
     print("\nRows per branch:")
     print(df['branch'].value_counts())
 
-    # STEP 3 — Validate
+    #  Validate
     print("Validating data quality...")
     validate(df)
 
-    # STEP 4 — Load to DB
+    # Load to DB
     print("STEP 3/3  Loading to database...")
     load_to_db(df)
 
