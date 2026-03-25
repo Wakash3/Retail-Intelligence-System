@@ -14,7 +14,6 @@ A high-performance retail analytics platform designed to provide actionable insi
 - **Frontend**: [Streamlit](https://streamlit.io/)
 - **Database**: [SQLAlchemy](https://www.sqlalchemy.org/) (Supports PostgreSQL & SQLite)
 - **Analytics**: [Pandas](https://pandas.pydata.org/), [Plotly](https://plotly.com/)
-- **AI**: [python-jose](https://github.com/mpdavis/python-jose), [yagmail](https://github.com/kootenpv/yagmail)
 
 ## 🏁 Quick Start
 
