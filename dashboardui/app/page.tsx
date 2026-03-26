@@ -29,26 +29,42 @@ export default function Dashboard() {
   const loadData = async (tk: string) => {
     setIsLoading(true);
     try {
-      const [summary, branches] = await Promise.all([
-        fetchWithAuth("/summary", tk),
-        fetchWithAuth("/branches", tk)
-      ]);
+      // Fetch summary (Essential)
+      let summary = null;
+      try {
+        summary = await fetchWithAuth("/summary", tk);
+      } catch (e) {
+        console.error("Summary fetch failed:", e);
+      }
+
+      // Fetch branches (Analytical)
+      let branches = [];
+      try {
+        const branchRes = await fetchWithAuth("/branches", tk);
+        branches = Array.isArray(branchRes) ? branchRes : [];
+      } catch (e) {
+        console.error("Branches fetch failed:", e);
+      }
       
-      let finalBranches = branches || [];
+      let finalBranches = branches;
       if (finalBranches.length === 0) {
-        // Fallback: Use scorecard data if branches is empty (similar to Streamlit logic)
-        const scorecard = await fetchWithAuth("/scorecard", tk);
-        if (scorecard && Array.isArray(scorecard)) {
-          finalBranches = scorecard.map((s: any) => ({
-            branch: s.branch,
-            total_revenue: s.total_revenue
-          }));
+        // Fallback: Use scorecard data if branches is empty
+        try {
+          const scorecard = await fetchWithAuth("/scorecard", tk);
+          if (scorecard && Array.isArray(scorecard)) {
+            finalBranches = scorecard.map((s: any) => ({
+              branch: s.branch,
+              total_revenue: s.total_revenue
+            }));
+          }
+        } catch (e) {
+          console.error("Scorecard fallback failed:", e);
         }
       }
       
       setData({ summary, branches: finalBranches });
     } catch (e) {
-      console.error(e);
+      console.error("Dashboard load crash:", e);
       // If error occurs (like 401), force re-login
       if (e instanceof Error && e.message.includes("401")) {
           localStorage.removeItem("token");

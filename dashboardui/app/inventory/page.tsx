@@ -254,7 +254,6 @@ export default function InventoryPage() {
                 </tr>
               ) : filteredList.length > 0 ? (
                 filteredList.map((p, i) => {
-                  const marginVal = p.avg_margin_pct || p.margin_pct || 0;
                   return (
                     <tr key={i} className="group hover:bg-orange-600/[0.02] transition-colors">
                       <td className="py-8 px-8">
@@ -265,19 +264,19 @@ export default function InventoryPage() {
                         </div>
                       </td>
                       <td className="py-8 px-6 text-right font-black text-foreground">
-                        {(p.total_qty || p.quantity || 0).toLocaleString()}
+                        {Number(p.total_qty || p.quantity || p.total_units_sold || 0).toLocaleString()}
                       </td>
                       <td className="py-8 px-6 text-right font-black text-orange-600">
-                        KES {(p.total_revenue || 0).toLocaleString()}
+                        KES {Number(p.total_revenue || p.net_sale || p.total_net_sales || 0).toLocaleString()}
                       </td>
                       <td className="py-8 px-6 text-right">
                          <span className={cn(
                            "px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-tighter",
-                           marginVal >= 15 ? "bg-emerald-500/10 text-emerald-500" :
-                           marginVal >= 5 ? "bg-orange-500/10 text-orange-500" :
+                           (p.avg_margin_pct || p.margin_pct || p.avg_margin || 0) >= 15 ? "bg-emerald-500/10 text-emerald-500" :
+                           (p.avg_margin_pct || p.margin_pct || p.avg_margin || 0) >= 5 ? "bg-orange-500/10 text-orange-500" :
                            "bg-red-500/10 text-red-500"
                          )}>
-                           {marginVal.toFixed(1)}% Margin
+                           {Number(p.avg_margin_pct || p.margin_pct || p.avg_margin || 0).toFixed(1)}% Margin
                          </span>
                       </td>
                       <td className="py-8 px-8 text-center">

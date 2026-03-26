@@ -234,9 +234,9 @@ export default function RecommendationsPage() {
                     animate={{ opacity: 1, height: "auto" }}
                     className="mt-8 pt-8 border-t border-white/10"
                   >
-                     <p className="text-lg font-medium text-emerald-400 italic leading-relaxed">
-                       "{aiInsights[activeTab]}"
-                     </p>
+                     <div className="text-base font-medium text-emerald-400 dark:text-emerald-300 leading-relaxed whitespace-pre-wrap bg-emerald-500/5 p-6 rounded-2xl border border-emerald-500/10">
+                       {aiInsights[activeTab]}
+                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -277,8 +277,8 @@ export default function RecommendationsPage() {
                   <div className="text-right">
                     <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Performance Signal</p>
                     <p className="text-xl font-black text-foreground">
-                      {activeTab === 'price' ? `${r.avg_margin.toFixed(1)}% → ${r.system_avg.toFixed(1)}%` : 
-                       `KES ${r.total_revenue.toLocaleString()}`}
+                      {activeTab === 'price' ? `${(r.avg_margin || 0).toFixed(1)}% → ${(r.system_avg || 0).toFixed(1)}%` : 
+                       `KES ${(r.total_revenue || 0).toLocaleString()}`}
                     </p>
                   </div>
                   <div className="p-4 bg-emerald-50 dark:bg-zinc-800 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all">

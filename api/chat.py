@@ -128,26 +128,33 @@ def get_live_kpi_context() -> str:
         # Clean up data for formatting (replace None with 0)
         class CleanRow:
             def __init__(self, row):
-                self.__dict__.update({
-                    k: (v if v is not None else 0) 
-                    for k, v in row._asdict().items()
-                })
+                if row:
+                    self.__dict__.update({
+                        k: (v if v is not None else 0) 
+                        for k, v in row._asdict().items()
+                    })
+                else:
+                    self.total_branches = 0
+                    self.total_products = 0
+                    self.total_revenue = 0
+                    self.avg_margin = 0
+                    self.latest_date = "N/A"
         
         c_summary = CleanRow(summary)
 
         branch_lines = "\n".join([
-            f"  - {r.branch}: KES {float(r.revenue or 0):,.0f} revenue | "
-            f"{float(r.avg_margin or 0):.1f}% avg margin | {int(r.products or 0)} products"
+            f"  - {r.branch or 'N/A'}: KES {float(r.revenue or 0):,.0f} revenue | "
+            f"{float(r.avg_margin or 0):.1f}% avg margin | {int(getattr(r, 'products', 0))} products"
             for r in branches
         ])
 
         low_margin_lines = "\n".join([
-            f"  - {r.product_name} @ {r.branch}: {float(r.avg_margin or 0):.1f}% margin"
+            f"  - {r.product_name or 'Unknown'} @ {r.branch or 'N/A'}: {float(r.avg_margin or 0):.1f}% margin"
             for r in low_margin
         ]) or "  None detected"
 
         top_product_lines = "\n".join([
-            f"  - {r.product_name}: KES {float(r.revenue or 0):,.0f}"
+            f"  - {r.product_name or 'Unknown'}: KES {float(r.revenue or 0):,.0f}"
             for r in top_products
         ])
 
