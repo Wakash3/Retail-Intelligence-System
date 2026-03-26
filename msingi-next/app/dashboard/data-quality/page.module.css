@@ -1,0 +1,54 @@
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  margin-bottom: 1.25rem;
+  border: 1px solid transparent;
+  flex-wrap: wrap;
+}
+
+.bannerOk {
+  background: #e8f5ee;
+  border-color: #a5d6a7;
+}
+
+.bannerFail {
+  background: #ffebee;
+  border-color: #ef9a9a;
+}
+
+.bannerText {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.refreshBtn {
+  margin-left: auto;
+  padding: 0.4rem 1rem;
+  font-size: 0.8rem;
+}
+
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.tableHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 900px) {
+  .kpiRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

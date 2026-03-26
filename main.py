@@ -59,12 +59,14 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(chat_router, prefix="/api", tags=["Chat"])
+
 # ─────────────────────────────────────────
-# CORS — includes Streamlit (8501) and React (3000)
+# CORS — includes Next.js (3000, 3001) and Streamlit (8501)
 # ─────────────────────────────────────────
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv(
     "ALLOWED_ORIGINS",
     "http://localhost:3000,http://127.0.0.1:3000,"
+    "http://localhost:3001,http://127.0.0.1:3001,"
     "http://localhost:8501,http://127.0.0.1:8501"
 ).split(",")]
 

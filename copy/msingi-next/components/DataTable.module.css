@@ -1,0 +1,16 @@
+.wrapper {
+  overflow-x: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 0.875rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.ok   { background: #e8f5ee; color: var(--success); }
+.fail { background: #ffebee; color: var(--error); }
+.warn { background: #fff3e0; color: var(--warning); }

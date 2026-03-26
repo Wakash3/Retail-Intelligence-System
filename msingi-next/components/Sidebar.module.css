@@ -1,0 +1,253 @@
+.sidebar {
+  width: 230px;
+  min-height: 100vh;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 100;
+  padding: 0 0 1rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 1.25rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+}
+
+.brandIcon {
+  width: 34px;
+  height: 34px;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.brandName {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text);
+  line-height: 1;
+}
+.brandSub {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+
+/* Fix 5a: Connection status */
+.connStatus {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0.35rem 1.25rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+}
+
+.dotGreen {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1A6B3C;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px #e8f5ee;
+  animation: pulse-green 2s infinite;
+}
+
+.dotRed {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #D32F2F;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px #ffebee;
+}
+
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 2px #e8f5ee; }
+  50%       { box-shadow: 0 0 0 4px #c8e6c9; }
+}
+
+.connLabel {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0.75rem;
+  overflow-y: auto;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.55rem 0.75rem;
+  border-radius: 9px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+}
+.navItem:hover { background: var(--bg); color: var(--text); }
+
+.active {
+  background: var(--primary-light) !important;
+  color: var(--primary) !important;
+  font-weight: 600;
+}
+
+.navIcon {
+  font-size: 1rem;
+  line-height: 1;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.navLabel { flex: 1; }
+
+.activePip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex-shrink: 0;
+}
+
+.bottom {
+  padding: 0.75rem 1rem 0;
+  border-top: 1px solid var(--border);
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Fix 5b: Token expiry */
+.tokenExpiry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.35rem 0.75rem;
+}
+
+.tokenIcon { font-size: 0.75rem; }
+
+.tokenExpiry strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Fix 5c: Test alert button */
+.testAlertBtn {
+  width: 100%;
+  padding: 0.48rem;
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.testAlertBtn:hover {
+  background: #fff3e0;
+  border-color: var(--warning);
+  color: var(--warning);
+}
+.testAlertBtn:disabled {
+  background: #e8f5ee;
+  border-color: var(--success);
+  color: var(--success);
+  cursor: default;
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.userDetails {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.userEmail {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.userRole {
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+.logoutBtn {
+  width: 100%;
+  padding: 0.55rem;
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.logoutBtn:hover {
+  background: #ffebee;
+  border-color: var(--error);
+  color: var(--error);
+}

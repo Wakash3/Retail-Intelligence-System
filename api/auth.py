@@ -194,8 +194,14 @@ def require_admin(current_user=Depends(get_current_user)):
     return current_user
 
 def require_role(*roles: str):
-    """Dependency factory — require one of the given roles."""
+    """
+    Dependency factory — require one of the given roles.
+    Admin users are automatically allowed regardless of the role list.
+    """
     def checker(current_user=Depends(get_current_user)):
+        # Admin has full access, no need to check roles
+        if current_user.role == "admin":
+            return current_user
         if current_user.role not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

@@ -14,12 +14,12 @@ import os
 import logging
 
 router = APIRouter()
-logger = logging.getLogger("msingi.chat")
+logger = logging.getLogger("msingi.gladwell")
 limiter = Limiter(key_func=get_remote_address)
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
-    logger.warning("GROQ_API_KEY not set — Nuru will be unavailable")
+    logger.warning("GROQ_API_KEY not set — Gladwell will be unavailable")
 
 # ─────────────────────────────────────────
 # MODELS
@@ -61,7 +61,7 @@ class ChatRequest(BaseModel):
 # LIVE KPI CONTEXT LOADER
 # ─────────────────────────────────────────
 def get_live_kpi_context() -> str:
-    """Pull live KPIs from PostgreSQL and format as context for Nuru."""
+    """Pull live KPIs from PostgreSQL and format as context for Gladwell."""
     try:
         engine = create_engine(os.getenv("DB_URL"), pool_pre_ping=True)
         with engine.connect() as conn:
@@ -126,36 +126,53 @@ def get_live_kpi_context() -> str:
                 LIMIT 5
             """)).fetchall()
 
+        # Clean up data for formatting (replace None with 0)
+        class CleanRow:
+            def __init__(self, row):
+                if row:
+                    self.__dict__.update({
+                        k: (v if v is not None else 0) 
+                        for k, v in row._asdict().items()
+                    })
+                else:
+                    self.total_branches = 0
+                    self.total_products = 0
+                    self.total_revenue = 0
+                    self.avg_margin = 0
+                    self.latest_date = "N/A"
+        
+        c_summary = CleanRow(summary)
+
         branch_lines = "\n".join([
-            f"  - {r.branch}: KES {r.revenue:,.0f} revenue | "
-            f"{r.avg_margin:.1f}% avg margin | {r.products} products"
+            f"  - {r.branch or 'N/A'}: KES {float(r.revenue or 0):,.0f} revenue | "
+            f"{float(r.avg_margin or 0):.1f}% avg margin | {int(getattr(r, 'products', 0))} products"
             for r in branches
         ])
 
         low_margin_lines = "\n".join([
-            f"  - {r.product_name} @ {r.branch}: {r.avg_margin:.1f}% margin"
+            f"  - {r.product_name or 'Unknown'} @ {r.branch or 'N/A'}: {float(r.avg_margin or 0):.1f}% margin"
             for r in low_margin
         ]) or "  None detected"
 
         top_product_lines = "\n".join([
-            f"  - {r.product_name}: KES {r.revenue:,.0f}"
+            f"  - {r.product_name or 'Unknown'}: KES {float(r.revenue or 0):,.0f}"
             for r in top_products
         ])
 
         stockout_lines = "\n".join([
-            f"  - {r.product_name} @ {r.branch}: {r.total_qty} units remaining"
+            f"  - {r.product_name} @ {r.branch}: {int(r.total_qty or 0)} units remaining"
             for r in stockout
         ]) or "  None detected"
 
         dept_lines = "\n".join([
-            f"  - {r.department}: KES {r.revenue:,.0f} | {r.avg_margin:.1f}% margin"
+            f"  - {r.department}: KES {float(r.revenue or 0):,.0f} | {float(r.avg_margin or 0):.1f}% margin"
             for r in departments
         ])
 
         context = f"""
-You are Nuru — an expert retail data analyst for Msingi Retail System, a multi-branch retail
-chain in Kenya. Your name is Nuru. If anyone asks your name, tell them you are
-Nuru, the Msingi Retail Intelligence AI Analyst.
+You are Gladwell — an expert retail data analyst for Msingi Retail System, a multi-branch retail
+chain in Kenya. Your name is Gladwell. If anyone asks your name, tell them you are
+Gladwell, the Msingi Retail Intelligence AI Analyst.
 
 You have access to live operational data and answer questions about branch
 performance, product margins, stockout risks, revenue trends, and department
@@ -165,11 +182,11 @@ commas. If asked something outside retail operations, politely redirect to
 business topics.
 
 === LIVE DATA SNAPSHOT ===
-Latest data date : {summary.latest_date}
-Total branches   : {summary.total_branches}
-Total products   : {summary.total_products}
-Total revenue    : KES {summary.total_revenue:,.0f}
-Average margin   : {summary.avg_margin:.1f}%
+Latest data date : {summary.latest_date or "N/A"}
+Total branches   : {c_summary.total_branches}
+Total products   : {c_summary.total_products}
+Total revenue    : KES {float(c_summary.total_revenue):,.0f}
+Average margin   : {float(c_summary.avg_margin):.1f}%
 
 === BRANCH PERFORMANCE (ranked by revenue) ===
 {branch_lines}
@@ -189,13 +206,14 @@ Average margin   : {summary.avg_margin:.1f}%
         return context.strip()
 
     except Exception as e:
-        logger.error(f"Failed to load KPI context for Nuru: {e}")
+        logger.error(f"Failed to load KPI context for Gladwell: {e}", exc_info=True)
         return (
-            "You are Nuru, the Msingi Retail System AI Analyst for Msingi Kenya. "
-            "Your name is Nuru. Live data is temporarily unavailable — answer "
+            "You are Gladwell, the Msingi Retail System AI Analyst for Msingi Kenya. "
+            "Your name is Gladwell. Live data is temporarily unavailable — answer "
             "based on general retail best practices and let the user know that "
             "live data could not be loaded right now."
         )
+
 
 # ─────────────────────────────────────────
 # STANDARD CHAT ENDPOINT
@@ -208,7 +226,7 @@ async def chat(
     current_user=Depends(get_current_user)
 ):
     if not GROQ_API_KEY:
-        raise HTTPException(status_code=503, detail="Nuru is currently unavailable")
+        raise HTTPException(status_code=503, detail="Gladwell is currently unavailable")
 
     try:
         client = Groq(api_key=GROQ_API_KEY)
@@ -235,12 +253,12 @@ async def chat(
             raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
         if "authentication" in error_msg or "api key" in error_msg:
             logger.error(f"Groq auth error: {e}")
-            return {"reply": "I'm sorry, Nuru is having trouble connecting right now. Please check the Groq API key in the server configuration."}
+            return {"reply": "I'm sorry, Gladwell is having trouble connecting right now. Please check the Groq API key in the server configuration."}
         logger.error(f"Groq API error: {e}")
-        return {"reply": "Nuru is temporarily unavailable. Please try again later."}
+        return {"reply": "Gladwell is temporarily unavailable. Please try again later."}
 
 # ─────────────────────────────────────────
-# NURU ANALYST ENDPOINT (UPDATED WITH FULL ERROR LOGGING)
+# GLADWELL ANALYST ENDPOINT (UPDATED WITH FULL ERROR LOGGING)
 # ─────────────────────────────────────────
 @router.post("/chat/analyst")
 @limiter.limit("15/minute")
@@ -250,7 +268,7 @@ async def chat_analyst(
     current_user=Depends(get_current_user)
 ):
     """
-    Nuru analyst chat — Groq receives live KPI data as system context.
+    Gladwell analyst chat — Groq receives live KPI data as system context.
     Management can ask natural language questions about the business.
     """
     if not GROQ_API_KEY:
@@ -259,7 +277,7 @@ async def chat_analyst(
     try:
         client = Groq(api_key=GROQ_API_KEY)
 
-        # Always inject live KPI context as Nuru's system prompt
+        # Always inject live KPI context as Gladwell's system prompt
         live_context = get_live_kpi_context()
 
         messages = [{"role": "system", "content": live_context}]
@@ -274,7 +292,7 @@ async def chat_analyst(
 
         reply = response.choices[0].message.content or ""
         logger.info(
-            f"Nuru analyst query by {current_user.email} — "
+            f"Gladwell analyst query by {current_user.email} — "
             f"{len(body.messages)} messages in history"
         )
         return {"reply": reply}
@@ -283,6 +301,8 @@ async def chat_analyst(
         # Log the full error with traceback for debugging
         import traceback
         error_trace = traceback.format_exc()
-        logger.error(f"Nuru Groq error:\n{error_trace}")
+        logger.error(f"Gladwell Groq error:\n{error_trace}")
         return {"reply": f"Groq API error: {type(e).__name__} - {str(e)}"}
+
+
 
