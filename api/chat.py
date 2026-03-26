@@ -12,7 +12,6 @@ from sqlalchemy import create_engine, text
 from api.auth import get_current_user
 import os
 import logging
-
 router = APIRouter()
 logger = logging.getLogger("msingi.gladwell")
 limiter = Limiter(key_func=get_remote_address)
