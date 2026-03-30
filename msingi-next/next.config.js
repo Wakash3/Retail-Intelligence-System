@@ -4,6 +4,7 @@ const nextConfig = {
     return [];
   },
 
+  // TypeScript errors ignored at build time
  // Ignore ESLint errors
   eslint: {
     ignoreDuringBuilds: true,
@@ -14,6 +15,11 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 
+  // Suppress strict warnings
+  reactStrictMode: false,
+
+  // Fix lockfile workspace warning
+  outputFileTracingRoot: require('path').join(__dirname, '../../'),
   // Optional: reduce strict warnings
   reactStrictMode: false,
 };

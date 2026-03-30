@@ -190,7 +190,6 @@ def run_all_alerts():
     results = {"margin": False, "stockout": False, "revenue": False}
 
     try:
-        # Import from alerts.py in root folder
         from alerts import check_margin_alerts, check_stockout_alerts, check_revenue_targets
 
         logger.info("Running margin alerts...")
@@ -297,34 +296,32 @@ def trigger_alerts_manually(
     return result
 
 # ─────────────────────────────────────────
-# ALERTS — Test endpoint (UPDATED to use send_alert)
+# ALERTS — Test endpoint
 # ─────────────────────────────────────────
 @app.post("/alerts/test", tags=["Alerts"])
 def test_alerts(current_user=Depends(require_admin)):
     """Send test alerts to verify system (admin only)"""
     try:
-        # Import from alerts.py in root folder
         from alerts import send_alert
-        
-        # Send a test email alert
+
         test_message = """
         🔶 Rubis Intelligence Test Alert 🔶
-        
+
         This is a test alert to verify the alert system is working correctly.
-        
+
         Test Details:
         - Time: {time}
         - User: {user}
         - System: Rubis Intelligence
-        
+
         If you received this, the alert system is functioning properly.
         """.format(
             time=__import__('datetime').datetime.now(),
             user=current_user.email
         )
-        
+
         send_alert("TEST ALERT - System Test", test_message)
-        
+
         return {
             "message": "Test alert sent successfully",
             "status": "success",
@@ -554,7 +551,6 @@ def get_branch_scorecard(request: Request, current_user=Depends(get_current_user
     if df.empty:
         return []
 
-    # Normalise each metric to 0-100 score
     def normalise(series, invert=False):
         mn, mx = series.min(), series.max()
         if mx == mn:
@@ -574,7 +570,8 @@ def get_branch_scorecard(request: Request, current_user=Depends(get_current_user
         df["score_stockout"] * 0.20
     ).round(1)
 
-    df = df.sort_values("composite_score", ascending=False).reset_index(drop=True)
+    # Sort by total revenue (highest to lowest)
+    df = df.sort_values("total_revenue", ascending=False).reset_index(drop=True)
     df["rank"] = df.index + 1
 
     return df.to_dict(orient="records")
@@ -674,15 +671,15 @@ def get_data_quality(
         return round((n / total_rows) * 100, 2)
 
     columns = [
-        {"column": "branch",         "null_count": row["null_branch"],     "null_pct": pct(row["null_branch"]),     "status": "FAIL" if pct(row["null_branch"])    > 2 else "OK"},
-        {"column": "product_name",   "null_count": row["null_product"],    "null_pct": pct(row["null_product"]),    "status": "FAIL" if pct(row["null_product"])   > 2 else "OK"},
-        {"column": "net_sale",       "null_count": row["null_revenue"],    "null_pct": pct(row["null_revenue"]),    "status": "FAIL" if pct(row["null_revenue"])   > 2 else "OK"},
-        {"column": "margin_pct",     "null_count": row["null_margin"],     "null_pct": pct(row["null_margin"]),     "status": "FAIL" if pct(row["null_margin"])    > 5 else "OK"},
-        {"column": "cost_ex_vat",    "null_count": row["null_cost"],       "null_pct": pct(row["null_cost"]),       "status": "FAIL" if pct(row["null_cost"])      > 5 else "OK"},
-        {"column": "sales_date",     "null_count": row["null_date"],       "null_pct": pct(row["null_date"]),       "status": "FAIL" if pct(row["null_date"])      > 1 else "OK"},
-        {"column": "quantity",       "null_count": row["null_quantity"],   "null_pct": pct(row["null_quantity"]),   "status": "FAIL" if pct(row["null_quantity"])  > 2 else "OK"},
-        {"column": "net_sale (neg)", "null_count": row["negative_revenue"],"null_pct": pct(row["negative_revenue"]),"status": "WARN" if row["negative_revenue"]   > 0 else "OK"},
-        {"column": "margin (neg)",   "null_count": row["negative_margin"], "null_pct": pct(row["negative_margin"]), "status": "WARN" if row["negative_margin"]    > 0 else "OK"},
+        {"column": "branch",         "null_count": row["null_branch"],      "null_pct": pct(row["null_branch"]),      "status": "FAIL" if pct(row["null_branch"])    > 2 else "OK"},
+        {"column": "product_name",   "null_count": row["null_product"],     "null_pct": pct(row["null_product"]),     "status": "FAIL" if pct(row["null_product"])   > 2 else "OK"},
+        {"column": "net_sale",       "null_count": row["null_revenue"],     "null_pct": pct(row["null_revenue"]),     "status": "FAIL" if pct(row["null_revenue"])   > 2 else "OK"},
+        {"column": "margin_pct",     "null_count": row["null_margin"],      "null_pct": pct(row["null_margin"]),      "status": "FAIL" if pct(row["null_margin"])    > 5 else "OK"},
+        {"column": "cost_ex_vat",    "null_count": row["null_cost"],        "null_pct": pct(row["null_cost"]),        "status": "FAIL" if pct(row["null_cost"])      > 5 else "OK"},
+        {"column": "sales_date",     "null_count": row["null_date"],        "null_pct": pct(row["null_date"]),        "status": "FAIL" if pct(row["null_date"])      > 1 else "OK"},
+        {"column": "quantity",       "null_count": row["null_quantity"],    "null_pct": pct(row["null_quantity"]),    "status": "FAIL" if pct(row["null_quantity"])  > 2 else "OK"},
+        {"column": "net_sale (neg)", "null_count": row["negative_revenue"], "null_pct": pct(row["negative_revenue"]), "status": "WARN" if row["negative_revenue"]   > 0 else "OK"},
+        {"column": "margin (neg)",   "null_count": row["negative_margin"],  "null_pct": pct(row["negative_margin"]),  "status": "WARN" if row["negative_margin"]    > 0 else "OK"},
     ]
 
     return {
