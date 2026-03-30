@@ -1,749 +1,438 @@
-# main.py
-# Rubis POS — Main Application (Secured + Render-Ready)
+# api/auth.py
+# Rubis POS — Authentication System (Secured)
 
-import sys
-import io
-
-# Fix Windows console encoding (prevents UnicodeEncodeError with special chars)
-# On Render (Linux) this is harmless — stdout.buffer always exists
-if sys.stdout and hasattr(sys.stdout, 'buffer'):
-    try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    except Exception:
-        pass
-if sys.stderr and hasattr(sys.stderr, 'buffer'):
-    try:
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-    except Exception:
-        pass
-
-from fastapi import FastAPI, Depends, Request, Query
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import HTMLResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+from pydantic import BaseModel, EmailStr, validator
 from sqlalchemy import create_engine, text
-from pydantic import BaseModel, validator
 from dotenv import load_dotenv
-from api.auth import get_current_user, require_admin, require_role, router as auth_router
-from api.chat import router as chat_router
-from apscheduler.schedulers.background import BackgroundScheduler
-import pandas as pd
-import logging
-import re
+import redis
 import os
+import secrets
+import re
+import logging
 
 load_dotenv()
 
-# ─────────────────────────────────────────
-# ENVIRONMENT
-# ─────────────────────────────────────────
-# Set ENVIRONMENT=production in Render dashboard
-# Set ENVIRONMENT=development locally
-IS_PRODUCTION = os.getenv("ENVIRONMENT", "development").lower() == "production"
-LOG_TO_FILE   = os.getenv("LOG_TO_FILE", "true" if not IS_PRODUCTION else "false").lower() == "true"
+router = APIRouter()
+logger = logging.getLogger("rubis.auth")
 
 # ─────────────────────────────────────────
-# LOGGING
-# On Render: logs go to stdout only (Render captures them in its dashboard)
-# Locally:   logs go to both stdout and logs/app.log
+# SECURITY CONFIG  (all values from .env — never hardcoded)
 # ─────────────────────────────────────────
-handlers = [logging.StreamHandler(stream=sys.stdout)]
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+REFRESH_SECRET_KEY = os.getenv("JWT_REFRESH_SECRET_KEY")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 7
+RESET_TOKEN_EXPIRE_MINUTES = 15
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_MINUTES = 15
 
-if LOG_TO_FILE:
-    os.makedirs("logs", exist_ok=True)
-    handlers.append(logging.FileHandler("logs/app.log", encoding="utf-8"))
+if not SECRET_KEY or not REFRESH_SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY and JWT_REFRESH_SECRET_KEY must be set in .env")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=handlers
+# Use pbkdf2_sha256 - no bcrypt issues
+pwd_context = CryptContext(
+    schemes=["pbkdf2_sha256"],
+    deprecated="auto",
+    pbkdf2_sha256__rounds=29000
 )
-logger = logging.getLogger("rubis.main")
-logger.info("Starting Rubis Retail Intelligence — environment: %s", "production" if IS_PRODUCTION else "development")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 # ─────────────────────────────────────────
-# APP + RATE LIMITER
+# REDIS  (for rate limiting + session tracking) - DISABLED FOR NOW
 # ─────────────────────────────────────────
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
-app = FastAPI(
-    title="Rubis Retail Intelligence System",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    # Disable docs in production for security (optional — comment out if you want docs live)
-    # docs_url=None if IS_PRODUCTION else "/docs",
-    # redoc_url=None if IS_PRODUCTION else "/redoc",
-)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
-app.include_router(chat_router, prefix="/api", tags=["Chat"])
-
-# ─────────────────────────────────────────
-# CORS
-# Locally:    reads from .env ALLOWED_ORIGINS
-# On Render:  set ALLOWED_ORIGINS in Render dashboard Environment tab
-#
-# Example value for Render:
-#   https://your-msingi-app.vercel.app,http://localhost:3000,http://localhost:3001
-# ─────────────────────────────────────────
-ALLOWED_ORIGINS = [
-    o.strip()
-    for o in os.getenv(
-        "ALLOWED_ORIGINS",
-        "http://localhost:3000,http://127.0.0.1:3000,"
-        "http://localhost:3001,http://127.0.0.1:3001,"
-        "http://localhost:8501,http://127.0.0.1:8501"
-    ).split(",")
-    if o.strip()
-]
-
-logger.info("CORS allowed origins: %s", ALLOWED_ORIGINS)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
-)
-
-# ─────────────────────────────────────────
-# TRUSTED HOST MIDDLEWARE
-# Locally:    localhost, 127.0.0.1
-# On Render:  set ALLOWED_HOSTS in Render dashboard Environment tab
-#
-# Example value for Render:
-#   localhost,127.0.0.1,msingi-retail-api.onrender.com
-#
-# IMPORTANT: If you use a custom domain later, add it here too.
-# ─────────────────────────────────────────
-ALLOWED_HOSTS = [
-    h.strip()
-    for h in os.getenv(
-        "ALLOWED_HOSTS",
-        "localhost,127.0.0.1"
-    ).split(",")
-    if h.strip()
-]
-
-logger.info("Trusted hosts: %s", ALLOWED_HOSTS)
-
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=ALLOWED_HOSTS,
-)
-
-# ─────────────────────────────────────────
-# SECURITY HEADERS
-# ─────────────────────────────────────────
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"]  = "nosniff"
-    response.headers["X-Frame-Options"]          = "DENY"
-    response.headers["X-XSS-Protection"]         = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Referrer-Policy"]           = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"]        = "camera=(), microphone=(), geolocation=()"
-    return response
-
-# ─────────────────────────────────────────
-# REQUEST LOGGING MIDDLEWARE
-# ─────────────────────────────────────────
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    response = await call_next(request)
-    if response.status_code >= 400:
-        logger.warning(
-            "%s %s -> %s | IP: %s",
-            request.method,
-            request.url.path,
-            response.status_code,
-            request.client.host if request.client else "unknown"
+def get_redis():
+    try:
+        return redis.Redis(
+            host=os.getenv("REDIS_HOST", "localhost"),
+            port=int(os.getenv("REDIS_PORT", 6379)),
+            password=os.getenv("REDIS_PASSWORD"),
+            decode_responses=True,
+            socket_connect_timeout=1
         )
-    return response
+    except:
+        return None
 
 # ─────────────────────────────────────────
 # DATABASE
-# Locally:    set DB_URL in your .env file
-# On Render:  set DB_URL in Render dashboard Environment tab
-#             (use the Internal Database URL from your Render PostgreSQL)
 # ─────────────────────────────────────────
 def get_engine():
-    db_url = os.getenv("DB_URL")
-    if not db_url:
-        logger.error("DB_URL is not set!")
-        raise RuntimeError("DB_URL environment variable is missing. Check your .env or Render environment settings.")
-    return create_engine(db_url, pool_pre_ping=True)
+    return create_engine(os.getenv("DB_URL"), pool_pre_ping=True)
 
-def init_db():
-    """Create all required tables if they don't exist."""
+# ─────────────────────────────────────────
+# MODELS
+# ─────────────────────────────────────────
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+
+    @validator("password")
+    def password_strength(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[0-9]", v):
+            raise ValueError("Password must contain at least one number")
+        return v
+
+    @validator("full_name")
+    def sanitize_name(cls, v):
+        if not re.match(r"^[a-zA-Z\s'\-]{2,80}$", v):
+            raise ValueError("Full name contains invalid characters")
+        return v.strip()
+
+class Token(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: int
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+class PasswordResetRequest(BaseModel):
+    token: str
+    new_password: str
+
+    @validator("new_password")
+    def password_strength(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[0-9]", v):
+            raise ValueError("Password must contain at least one number")
+        return v
+
+# ─────────────────────────────────────────
+# PASSWORD + TOKEN UTILITIES
+# ─────────────────────────────────────────
+def hash_password(password: str) -> str:
+    """Hash a password using pbkdf2_sha256"""
+    return pwd_context.hash(password)
+
+def verify_password(plain: str, hashed: str) -> bool:
+    """Verify a password against its hash"""
+    return pwd_context.verify(plain, hashed)
+
+def create_access_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire, "iat": datetime.utcnow(), "type": "access"})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def create_refresh_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire, "iat": datetime.utcnow(), "type": "refresh"})
+    return jwt.encode(to_encode, REFRESH_SECRET_KEY, algorithm=ALGORITHM)
+
+def create_secure_token() -> str:
+    """Cryptographically secure token for email verification and password reset."""
+    return secrets.token_urlsafe(48)
+
+# ─────────────────────────────────────────
+# USER UTILITIES
+# ─────────────────────────────────────────
+def get_user_by_email(email: str):
     engine = get_engine()
     with engine.connect() as conn:
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                hashed_password TEXT NOT NULL,
-                full_name VARCHAR(255),
-                role VARCHAR(50) DEFAULT 'viewer',
-                branch VARCHAR(100),
-                is_verified BOOLEAN DEFAULT FALSE,
-                is_active BOOLEAN DEFAULT TRUE,
-                verification_token TEXT,
-                reset_token TEXT,
-                reset_token_expires TIMESTAMP,
-                failed_login_attempts INTEGER DEFAULT 0,
-                locked_until TIMESTAMP,
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW()
-            )
-        """))
+        result = conn.execute(
+            text("SELECT * FROM users WHERE email = :email"),
+            {"email": email}
+        ).fetchone()
+        return result
 
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS auth_logs (
-                id SERIAL PRIMARY KEY,
-                email VARCHAR(255),
-                action VARCHAR(100) NOT NULL,
-                ip_address VARCHAR(45),
-                user_agent TEXT,
-                success BOOLEAN DEFAULT TRUE,
-                details TEXT,
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """))
-
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS refresh_tokens (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                token TEXT UNIQUE NOT NULL,
-                expires_at TIMESTAMP NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """))
-
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_auth_logs_email ON auth_logs(email)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_auth_logs_created ON auth_logs(created_at)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token)"))
-
-        conn.commit()
-    logger.info("Database tables verified/created successfully")
-
-# ─────────────────────────────────────────
-# ALERT FUNCTIONS
-# ─────────────────────────────────────────
-def run_all_alerts():
-    """Run all alert checks and return results."""
-    results = {"margin": False, "stockout": False, "revenue": False}
-    try:
-        from alerts import check_margin_alerts, check_stockout_alerts, check_revenue_targets
-
-        logger.info("Running margin alerts...")
-        results["margin"] = check_margin_alerts()
-
-        logger.info("Running stockout alerts...")
-        results["stockout"] = check_stockout_alerts()
-
-        logger.info("Running revenue target alerts...")
-        results["revenue"] = check_revenue_targets()
-
-        logger.info("Alert run complete: %s", results)
-        return results
-
-    except Exception as e:
-        logger.error("Error running alerts: %s", e)
-        return {"error": str(e)}
-
-# ─────────────────────────────────────────
-# STARTUP — DB init + Alert scheduler
-# ─────────────────────────────────────────
-scheduler = None
-
-@app.on_event("startup")
-def on_startup():
-    global scheduler
-
-    # Initialise database tables
-    try:
-        init_db()
-    except Exception as e:
-        logger.error("Database init failed: %s", e)
-        # Don't crash the app — DB might not be ready yet on first cold start
-
-    # Start background alert scheduler
-    interval = int(os.getenv("ALERT_CHECK_INTERVAL_MINUTES", "60"))
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(run_all_alerts, "interval", minutes=interval)
-    scheduler.start()
-    logger.info("Alert scheduler started — checking every %d minutes", interval)
-
-@app.on_event("shutdown")
-def shutdown_event():
-    global scheduler
-    if scheduler and scheduler.running:
-        scheduler.shutdown()
-        logger.info("Alert scheduler shut down cleanly")
-
-# ─────────────────────────────────────────
-# VALIDATION HELPERS
-# ─────────────────────────────────────────
-SAFE_BRANCH_PATTERN = re.compile(r"^[a-zA-Z0-9\s&\-]{1,60}$")
-
-def validate_branch(branch: str) -> str:
-    if not SAFE_BRANCH_PATTERN.match(branch):
-        from fastapi import HTTPException
-        raise HTTPException(status_code=422, detail="Invalid branch name")
-    return branch
-
-def validate_limit(limit: int) -> int:
-    if limit < 1 or limit > 500:
-        return 20
-    return limit
-
-# ─────────────────────────────────────────
-# STATIC AUTH PAGE
-# ─────────────────────────────────────────
-@app.get("/login", response_class=HTMLResponse, include_in_schema=False)
-def login_page():
-    template_path = os.path.join("api", "templates", "auth.html")
-    if not os.path.exists(template_path):
-        return HTMLResponse("<h1>Login template not found</h1>", status_code=404)
-    with open(template_path, "r", encoding="utf-8") as f:
-        return f.read()
-
-# ─────────────────────────────────────────
-# HEALTH CHECK
-# ─────────────────────────────────────────
-@app.get("/")
-def health_check():
-    return {
-        "status": "ok",
-        "system": "Rubis Retail Intelligence",
-        "message": "API is running",
-        "environment": "production" if IS_PRODUCTION else "development"
-    }
-
-@app.get("/health", tags=["Health"])
-def health():
-    """Render uses this endpoint to verify the service is up."""
-    return {"status": "healthy"}
-
-# ─────────────────────────────────────────
-# DEBUG ENDPOINT — Check user role
-# Only available outside production
-# ─────────────────────────────────────────
-if not IS_PRODUCTION:
-    @app.get("/debug/my-role", tags=["Debug"])
-    def debug_my_role(current_user=Depends(get_current_user)):
-        return {
-            "email":     current_user.email,
-            "role":      current_user.role,
-            "user_id":   current_user.id,
-            "is_active": current_user.is_active,
-            "branch":    current_user.branch if hasattr(current_user, "branch") else None
-        }
-
-# ─────────────────────────────────────────
-# ALERTS — Manual trigger
-# ─────────────────────────────────────────
-@app.get("/alerts/run", tags=["Alerts"])
-@limiter.limit("5/minute")
-def trigger_alerts_manually(
-    request: Request,
-    current_user=Depends(require_role("admin", "analyst"))
-):
-    """Manually trigger all alert checks. Restricted to admin and analyst roles."""
-    result = run_all_alerts()
-    return result
-
-# ─────────────────────────────────────────
-# ALERTS — Test endpoint
-# ─────────────────────────────────────────
-@app.post("/alerts/test", tags=["Alerts"])
-def test_alerts(current_user=Depends(require_admin)):
-    """Send a test alert to verify the alert system (admin only)."""
-    try:
-        from alerts import send_alert
-        import datetime
-
-        test_message = (
-            "Rubis Intelligence Test Alert\n\n"
-            "This is a test alert to verify the alert system is working.\n\n"
-            f"Time: {datetime.datetime.now()}\n"
-            f"User: {current_user.email}\n"
-            "System: Rubis Intelligence\n\n"
-            "If you received this, the alert system is functioning properly."
-        )
-
-        send_alert("TEST ALERT - System Test", test_message)
-
-        return {
-            "message": "Test alert sent successfully",
-            "status":  "success",
-            "details": "Email alert sent to configured recipients"
-        }
-    except Exception as e:
-        logger.error("Test alert failed: %s", e)
-        return {"error": str(e), "status": "failed"}
-
-# ─────────────────────────────────────────
-# SUMMARY
-# ─────────────────────────────────────────
-@app.get("/summary")
-@limiter.limit("60/minute")
-def get_summary(request: Request, current_user=Depends(get_current_user)):
+def get_user_by_id(user_id: int):
     engine = get_engine()
     with engine.connect() as conn:
-        total_rows     = conn.execute(text("SELECT COUNT(*) FROM pos_sales")).scalar()
-        total_branches = conn.execute(text("SELECT COUNT(DISTINCT branch) FROM pos_sales")).scalar()
-        total_revenue  = conn.execute(text("SELECT ROUND(SUM(net_sale)::NUMERIC, 2) FROM pos_sales")).scalar()
-        total_products = conn.execute(text("SELECT COUNT(DISTINCT sku_code) FROM pos_sales")).scalar()
-        last_load      = conn.execute(text("SELECT MAX(loaded_at) FROM pos_sales")).scalar()
-    return {
-        "total_rows":            total_rows,
-        "total_branches":        total_branches,
-        "total_net_revenue":     float(total_revenue or 0),
-        "total_unique_products": total_products,
-        "last_pipeline_run":     str(last_load)
-    }
+        result = conn.execute(
+            text("SELECT * FROM users WHERE id = :id"),
+            {"id": user_id}
+        ).fetchone()
+        return result
 
-# ─────────────────────────────────────────
-# BRANCH PERFORMANCE
-# ─────────────────────────────────────────
-@app.get("/branches")
-@limiter.limit("60/minute")
-def get_branch_performance(request: Request, current_user=Depends(get_current_user)):
-    engine = get_engine()
-    if current_user.role == "admin":
-        df = pd.read_sql("SELECT * FROM vw_branch_performance", engine)
-    else:
-        assigned = current_user.branch if hasattr(current_user, "branch") else None
-        if not assigned:
-            return []
-        df = pd.read_sql(
-            "SELECT * FROM vw_branch_performance WHERE branch = %(branch)s",
-            engine,
-            params={"branch": assigned}
-        )
-    return df.to_dict(orient="records")
-
-# ─────────────────────────────────────────
-# DEPARTMENTS
-# ─────────────────────────────────────────
-@app.get("/departments")
-@limiter.limit("60/minute")
-def get_department_performance(request: Request, current_user=Depends(get_current_user)):
-    engine = get_engine()
-    df = pd.read_sql("SELECT * FROM vw_department_performance", engine)
-    return df.to_dict(orient="records")
-
-# ─────────────────────────────────────────
-# PRODUCTS
-# ─────────────────────────────────────────
-@app.get("/products/top")
-@limiter.limit("60/minute")
-def get_top_products(
-    request: Request,
-    limit: int = Query(default=20, ge=1, le=500),
-    current_user=Depends(get_current_user)
-):
-    engine = get_engine()
-    df = pd.read_sql(
-        "SELECT * FROM vw_top_products LIMIT %(limit)s",
-        engine,
-        params={"limit": limit}
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
     )
-    return df.to_dict(orient="records")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "access":
+            raise credentials_exception
+        email: str = payload.get("sub")
+        if not email:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
 
-@app.get("/products/low-margin")
-@limiter.limit("60/minute")
-def get_low_margin_products(request: Request, current_user=Depends(get_current_user)):
-    engine = get_engine()
-    df = pd.read_sql("SELECT * FROM vw_low_margin_products", engine)
-    return df.to_dict(orient="records")
-
-@app.get("/products/high-value")
-@limiter.limit("60/minute")
-def get_high_value_products(request: Request, current_user=Depends(get_current_user)):
-    engine = get_engine()
-    df = pd.read_sql("SELECT * FROM vw_high_value_products", engine)
-    return df.to_dict(orient="records")
-
-# ─────────────────────────────────────────
-# BRANCH x DEPARTMENT
-# ─────────────────────────────────────────
-@app.get("/branch-department")
-@limiter.limit("30/minute")
-def get_branch_department(request: Request, current_user=Depends(get_current_user)):
-    engine = get_engine()
-    df = pd.read_sql("SELECT * FROM vw_branch_department", engine)
-    df = df.fillna(0)
-    return df.to_dict(orient="records")
-
-# ─────────────────────────────────────────
-# ANOMALIES (admin/analyst only)
-# ─────────────────────────────────────────
-@app.get("/anomalies")
-@limiter.limit("30/minute")
-def get_anomalies(
-    request: Request,
-    current_user=Depends(require_role("admin", "analyst"))
-):
-    engine = get_engine()
-    df = pd.read_sql("""
-        SELECT * FROM pos_sales
-        WHERE margin_pct < 10
-          AND margin_pct IS NOT NULL
-          AND net_sale > 0
-        ORDER BY margin_pct ASC
-        LIMIT 500
-    """, engine)
-    return df.to_dict(orient="records")
-
-@app.get("/anomalies/critical")
-@limiter.limit("20/minute")
-def get_critical_anomalies(
-    request: Request,
-    current_user=Depends(require_role("admin", "analyst"))
-):
-    engine = get_engine()
-    df = pd.read_sql("""
-        WITH dept_avg AS (
-            SELECT department,
-                   AVG(margin_pct)    AS dept_avg,
-                   STDDEV(margin_pct) AS dept_std
-            FROM pos_sales
-            WHERE margin_pct IS NOT NULL
-            GROUP BY department
+    user = get_user_by_email(email)
+    if not user:
+        raise credentials_exception
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified"
         )
-        SELECT
-            p.sku_code, p.product_name, p.branch, p.department,
-            p.margin_pct,
-            d.dept_avg AS dept_avg_margin,
-            ROUND(((p.margin_pct - d.dept_avg) / NULLIF(d.dept_std, 0))::NUMERIC, 2) AS z_score,
-            ROUND(((p.margin_pct - d.dept_avg) * p.net_sale / 100)::NUMERIC, 2)      AS revenue_impact
-        FROM pos_sales p
-        JOIN dept_avg d ON p.department = d.department
-        WHERE ((p.margin_pct - d.dept_avg) / NULLIF(d.dept_std, 0)) < -2
-        ORDER BY z_score ASC
-        LIMIT 200
-    """, engine)
-    return df.to_dict(orient="records")
+    return user
 
-# ─────────────────────────────────────────
-# STOCKOUT
-# ─────────────────────────────────────────
-@app.get("/stockout/critical")
-@limiter.limit("20/minute")
-def get_critical_stockout(request: Request, current_user=Depends(get_current_user)):
-    engine = get_engine()
-    df = pd.read_sql("""
-        WITH dept_avg AS (
-            SELECT department,
-                   AVG(quantity)    AS dept_avg_qty,
-                   STDDEV(quantity) AS dept_std_qty
-            FROM pos_sales
-            WHERE quantity > 0
-            GROUP BY department
+def require_admin(current_user=Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
         )
-        SELECT
-            p.sku_code, p.product_name, p.branch, p.department,
-            p.quantity, p.net_sale,
-            ROUND(((p.quantity - d.dept_avg_qty) / NULLIF(d.dept_std_qty, 0))::NUMERIC, 2) AS velocity_score
-        FROM pos_sales p
-        JOIN dept_avg d ON p.department = d.department
-        WHERE ((p.quantity - d.dept_avg_qty) / NULLIF(d.dept_std_qty, 0)) > 2
-        ORDER BY velocity_score DESC
-        LIMIT 50
-    """, engine)
-    return df.to_dict(orient="records")
+    return current_user
+
+def require_role(*roles: str):
+    """
+    Dependency factory — require one of the given roles.
+    Admin users are automatically allowed regardless of the role list.
+    """
+    def checker(current_user=Depends(get_current_user)):
+        # Admin has full access, no need to check roles
+        if current_user.role == "admin":
+            return current_user
+        if current_user.role not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires one of roles: {', '.join(roles)}"
+            )
+        return current_user
+    return checker
 
 # ─────────────────────────────────────────
-# FORECAST
+# LOGIN ATTEMPT TRACKING (Redis-backed) - DISABLED FOR NOW
 # ─────────────────────────────────────────
-@app.get("/forecast")
-@limiter.limit("20/minute")
-def get_revenue_forecast(request: Request, current_user=Depends(get_current_user)):
+def _attempts_key(email: str) -> str:
+    return f"login_attempts:{email}"
+
+def _lockout_key(email: str) -> str:
+    return f"login_locked:{email}"
+
+def check_login_attempts(email: str):
+    # Rate limiting disabled - Redis not available
+    pass
+
+def record_failed_attempt(email: str):
+    # Rate limiting disabled - Redis not available
+    pass
+
+def clear_login_attempts(email: str):
+    # Rate limiting disabled - Redis not available
+    pass
+
+# ─────────────────────────────────────────
+# AUTH LOGGING
+# ─────────────────────────────────────────
+def log_auth_event(email: str, action: str, status_val: str, ip: str = None):
+    try:
+        engine = get_engine()
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO auth_logs (email, action, ip_address, success, created_at)
+                VALUES (:email, :action, :ip, :success, NOW())
+            """), {"email": email, "action": action, "ip": ip, "success": status_val == "success"})
+    except Exception as e:
+        logger.error(f"Failed to write auth log: {e}")
+
+# ─────────────────────────────────────────
+# AUTH ENDPOINTS
+# ─────────────────────────────────────────
+@router.post("/register", status_code=201)
+def register(user: UserCreate, request: Request):
+    existing = get_user_by_email(user.email)
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    hashed = hash_password(user.password)
+    verification_token = create_secure_token()
     engine = get_engine()
-    df = pd.read_sql("""
-        SELECT
-            branch,
-            ROUND(SUM(net_sale)::NUMERIC, 2)            AS current_revenue,
-            ROUND(SUM(net_sale)::NUMERIC * 1.05, 2)     AS month1_target,
-            ROUND(SUM(net_sale)::NUMERIC * 1.1025, 2)   AS month2_target,
-            ROUND(SUM(net_sale)::NUMERIC * 1.157625, 2) AS month3_target,
-            ROUND(AVG(margin_pct)::NUMERIC, 2)          AS avg_margin
-        FROM pos_sales
-        WHERE net_sale IS NOT NULL
-        GROUP BY branch
-        ORDER BY current_revenue DESC
-    """, engine)
-    return df.to_dict(orient="records")
 
-# ─────────────────────────────────────────
-# SCORECARD
-# ─────────────────────────────────────────
-@app.get("/scorecard", tags=["Scorecard"])
-@limiter.limit("30/minute")
-def get_branch_scorecard(request: Request, current_user=Depends(get_current_user)):
-    engine = get_engine()
-    df = pd.read_sql("""
-        SELECT
-            branch,
-            ROUND(SUM(net_sale)::NUMERIC, 2)                          AS total_revenue,
-            ROUND(AVG(margin_pct)::NUMERIC, 2)                        AS avg_margin,
-            COUNT(DISTINCT sku_code)                                   AS product_variety,
-            ROUND(SUM(net_contribution)::NUMERIC, 2)                   AS total_contribution,
-            COUNT(CASE WHEN margin_pct < 5 THEN 1 END)                 AS low_margin_count,
-            ROUND(SUM(net_sale) * 100.0 /
-                NULLIF(SUM(SUM(net_sale)) OVER (), 0), 2)              AS revenue_share_pct
-        FROM pos_sales
-        WHERE net_sale IS NOT NULL
-        GROUP BY branch
-        ORDER BY total_revenue DESC
-    """, engine)
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO users (email, hashed_password, full_name, role,
+                               is_verified, verification_token, created_at)
+            VALUES (:email, :hashed_password, :full_name, 'viewer',
+                    true, :verification_token, NOW())
+        """), {
+            "email": user.email,
+            "hashed_password": hashed,
+            "full_name": user.full_name,
+            "verification_token": verification_token
+        })
 
-    if df.empty:
-        return []
+    log_auth_event(user.email, "register", "success", request.client.host)
 
-    def normalise(series, invert=False):
-        mn, mx = series.min(), series.max()
-        if mx == mn:
-            return pd.Series([50.0] * len(series), index=series.index)
-        scaled = (series - mn) / (mx - mn) * 100
-        return (100 - scaled) if invert else scaled
+    return {"message": "Registration successful. You can now log in."}
 
-    df["score_revenue"]  = normalise(df["total_revenue"]).round(1)
-    df["score_margin"]   = normalise(df["avg_margin"]).round(1)
-    df["score_variety"]  = normalise(df["product_variety"]).round(1)
-    df["score_stockout"] = normalise(df["low_margin_count"], invert=True).round(1)
-
-    df["composite_score"] = (
-        df["score_revenue"]  * 0.35 +
-        df["score_margin"]   * 0.30 +
-        df["score_variety"]  * 0.15 +
-        df["score_stockout"] * 0.20
-    ).round(1)
-
-    df = df.sort_values("composite_score", ascending=False).reset_index(drop=True)
-    df["rank"] = df.index + 1
-
-    return df.to_dict(orient="records")
-
-# ─────────────────────────────────────────
-# RECOMMENDATIONS
-# ─────────────────────────────────────────
-@app.get("/recommendations/{branch}", tags=["Recommendations"])
-@limiter.limit("20/minute")
-def get_recommendations_for_branch(
+@router.post("/login", response_model=Token)
+def login(
     request: Request,
-    branch: str,
-    limit: int = Query(default=5, ge=1, le=20),
-    current_user=Depends(get_current_user)
+    form_data: OAuth2PasswordRequestForm = Depends()
 ):
-    branch = validate_branch(branch)
-    engine = get_engine()
+    email = form_data.username.lower().strip()
+    check_login_attempts(email)
 
-    df = pd.read_sql("""
-        SELECT branch, product_name, sku_code,
-               SUM(quantity)  AS total_qty,
-               SUM(net_sale)  AS total_revenue
-        FROM pos_sales
-        GROUP BY branch, product_name, sku_code
-    """, engine)
+    user = get_user_by_email(email)
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        record_failed_attempt(email)
+        log_auth_event(email, "login", "failed", request.client.host)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password"
+        )
 
-    if df.empty:
-        return []
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email before logging in"
+        )
 
-    top_branch = (
-        df.groupby("branch")["total_revenue"]
-        .sum()
-        .idxmax()
+    clear_login_attempts(email)
+    log_auth_event(email, "login", "success", request.client.host)
+
+    access_token = create_access_token({"sub": user.email, "role": user.role, "user_id": user.id})
+    refresh_token = create_refresh_token({"sub": user.email})
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    }
+
+@router.post("/refresh", response_model=Token)
+def refresh_token(data: RefreshRequest):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid refresh token"
     )
+    try:
+        payload = jwt.decode(data.refresh_token, REFRESH_SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise credentials_exception
+        email: str = payload.get("sub")
+        if not email:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
 
-    top_products = df[df["branch"] == top_branch][
-        ["product_name", "sku_code", "total_qty", "total_revenue"]
-    ].copy()
+    user = get_user_by_email(email)
+    if not user:
+        raise credentials_exception
 
-    branch_skus = set(df[df["branch"] == branch]["sku_code"].tolist())
-    missing = top_products[~top_products["sku_code"].isin(branch_skus)]
-    missing = missing.sort_values("total_revenue", ascending=False).head(limit)
+    new_access = create_access_token({"sub": user.email, "role": user.role, "user_id": user.id})
+    new_refresh = create_refresh_token({"sub": user.email})
 
     return {
-        "branch":           branch,
-        "benchmark_branch": top_branch,
-        "recommendations":  missing.rename(columns={
-            "total_qty":     "qty_at_benchmark",
-            "total_revenue": "revenue_at_benchmark"
-        }).to_dict(orient="records")
+        "access_token": new_access,
+        "refresh_token": new_refresh,
+        "token_type": "bearer",
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
     }
 
-# ─────────────────────────────────────────
-# DATA QUALITY
-# ─────────────────────────────────────────
-@app.get("/data-quality", tags=["Data Quality"])
-@limiter.limit("20/minute")
-def get_data_quality(
-    request: Request,
-    current_user=Depends(require_role("admin", "analyst"))
-):
+@router.get("/verify/{token}")
+def verify_email(token: str):
+    if not re.match(r"^[a-zA-Z0-9_\-]{20,100}$", token):
+        raise HTTPException(status_code=400, detail="Invalid token format")
+
     engine = get_engine()
-
     with engine.connect() as conn:
-        total = conn.execute(
-            text("SELECT COUNT(*) FROM pos_sales")
-        ).scalar() or 1
+        user = conn.execute(
+            text("SELECT * FROM users WHERE verification_token = :token"),
+            {"token": token}
+        ).fetchone()
 
-        results = conn.execute(text("""
-            SELECT
-                COUNT(*)                                                         AS total_rows,
-                COUNT(*) FILTER (WHERE branch IS NULL)                           AS null_branch,
-                COUNT(*) FILTER (WHERE product_name IS NULL)                     AS null_product,
-                COUNT(*) FILTER (WHERE net_sale IS NULL OR net_sale = 0)         AS null_revenue,
-                COUNT(*) FILTER (WHERE margin_pct IS NULL)                       AS null_margin,
-                COUNT(*) FILTER (WHERE cost_ex_vat IS NULL)                      AS null_cost,
-                COUNT(*) FILTER (WHERE sales_date IS NULL)                       AS null_date,
-                COUNT(*) FILTER (WHERE quantity IS NULL OR quantity = 0)         AS null_quantity,
-                COUNT(*) FILTER (WHERE net_sale < 0)                             AS negative_revenue,
-                COUNT(*) FILTER (WHERE margin_pct < 0)                           AS negative_margin,
-                COUNT(DISTINCT source_file)                                      AS source_files_loaded,
-                MAX(loaded_at)                                                   AS last_loaded_at,
-                MIN(sales_date)                                                  AS earliest_sale,
-                MAX(sales_date)                                                  AS latest_sale
-            FROM pos_sales
-        """)).fetchone()
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification link")
 
-    row = dict(results._mapping)
-    total_rows = row["total_rows"] or 1
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE users
+            SET is_verified = true, verification_token = null
+            WHERE id = :id
+        """), {"id": user.id})
 
-    def pct(n):
-        return round((n / total_rows) * 100, 2)
+    return {"message": "Email verified successfully. You can now log in."}
 
-    columns = [
-        {"column": "branch",         "null_count": row["null_branch"],      "null_pct": pct(row["null_branch"]),      "status": "FAIL" if pct(row["null_branch"])     > 2 else "OK"},
-        {"column": "product_name",   "null_count": row["null_product"],     "null_pct": pct(row["null_product"]),     "status": "FAIL" if pct(row["null_product"])    > 2 else "OK"},
-        {"column": "net_sale",       "null_count": row["null_revenue"],     "null_pct": pct(row["null_revenue"]),     "status": "FAIL" if pct(row["null_revenue"])    > 2 else "OK"},
-        {"column": "margin_pct",     "null_count": row["null_margin"],      "null_pct": pct(row["null_margin"]),      "status": "FAIL" if pct(row["null_margin"])     > 5 else "OK"},
-        {"column": "cost_ex_vat",    "null_count": row["null_cost"],        "null_pct": pct(row["null_cost"]),        "status": "FAIL" if pct(row["null_cost"])       > 5 else "OK"},
-        {"column": "sales_date",     "null_count": row["null_date"],        "null_pct": pct(row["null_date"]),        "status": "FAIL" if pct(row["null_date"])       > 1 else "OK"},
-        {"column": "quantity",       "null_count": row["null_quantity"],    "null_pct": pct(row["null_quantity"]),    "status": "FAIL" if pct(row["null_quantity"])   > 2 else "OK"},
-        {"column": "net_sale (neg)", "null_count": row["negative_revenue"], "null_pct": pct(row["negative_revenue"]), "status": "WARN" if row["negative_revenue"]    > 0 else "OK"},
-        {"column": "margin (neg)",   "null_count": row["negative_margin"],  "null_pct": pct(row["negative_margin"]),  "status": "WARN" if row["negative_margin"]     > 0 else "OK"},
-    ]
+@router.post("/forgot-password")
+def forgot_password(email: str, request: Request):
+    # Always return the same response regardless of whether email exists
+    # This prevents email enumeration attacks
+    user = get_user_by_email(email.lower().strip())
+    if user:
+        reset_token = create_secure_token()
+        expires_at = datetime.utcnow() + timedelta(minutes=RESET_TOKEN_EXPIRE_MINUTES)
+        engine = get_engine()
+        with engine.begin() as conn:
+            conn.execute(text("""
+                UPDATE users
+                SET reset_token = :token, reset_token_expires = :expires
+                WHERE email = :email
+            """), {"token": reset_token, "expires": expires_at, "email": user.email})
 
+        log_auth_event(email, "password_reset_request", "success", request.client.host)
+
+    return {"message": "If that email is registered, a reset link has been sent."}
+
+@router.post("/reset-password")
+def reset_password(data: PasswordResetRequest, request: Request):
+    if not re.match(r"^[a-zA-Z0-9_\-]{20,100}$", data.token):
+        raise HTTPException(status_code=400, detail="Invalid token format")
+
+    engine = get_engine()
+    with engine.connect() as conn:
+        user = conn.execute(
+            text("""
+                SELECT * FROM users
+                WHERE reset_token = :token
+                  AND reset_token_expires > NOW()
+            """),
+            {"token": data.token}
+        ).fetchone()
+
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    hashed = hash_password(data.new_password)
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE users
+            SET hashed_password = :hashed,
+                reset_token = null,
+                reset_token_expires = null
+            WHERE id = :id
+        """), {"hashed": hashed, "id": user.id})
+
+    log_auth_event(user.email, "password_reset", "success", request.client.host)
+    return {"message": "Password reset successfully. You can now log in."}
+
+@router.get("/me")
+def get_me(current_user=Depends(get_current_user)):
     return {
-        "total_rows":          total_rows,
-        "source_files_loaded": row["source_files_loaded"],
-        "last_loaded_at":      str(row["last_loaded_at"]),
-        "earliest_sale":       str(row["earliest_sale"]),
-        "latest_sale":         str(row["latest_sale"]),
-        "columns":             columns,
-        "overall_status":      "FAIL" if any(c["status"] == "FAIL" for c in columns) else "OK"
+        "id": current_user.id,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "role": current_user.role,
+        "is_verified": current_user.is_verified,
+        "branch": current_user.branch
     }
+
+@router.post("/logout")
+def logout(request: Request, current_user=Depends(get_current_user)):
+    log_auth_event(current_user.email, "logout", "success", request.client.host)
+    return {"message": "Logged out successfully"}
+
+
+
 
