@@ -6,31 +6,32 @@ import { useTheme } from "next-themes";
 import { motion } from "framer-motion";
 
 export default function ModeToggle() {
-  const { theme, setTheme } = useTheme();
+  // Use resolvedTheme so it handles "system" correctly
+  const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
-  // Avoid hydration mismatch
   React.useEffect(() => {
     setMounted(true);
   }, []);
 
   if (!mounted) {
     return (
-      <div className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl text-sm font-semibold text-gray-400">
+      <div className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl text-sm font-semibold text-gray-400 opacity-50">
         <Sun className="w-5 h-5" />
-        <span>Loading Theme...</span>
+        <span>Loading...</span>
       </div>
     );
   }
 
-  const isDark = theme === "dark";
+  const isDark = resolvedTheme === "dark";
 
   return (
     <motion.button
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl text-sm font-semibold transition-all duration-200 text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 dark:text-zinc-400"
+      // Added z-50 to ensure it sits on top of other overlapping elements
+      className="relative z-50 flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl text-sm font-semibold transition-all duration-200 text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 dark:text-zinc-400"
     >
       {isDark ? (
         <>
