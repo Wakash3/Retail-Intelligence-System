@@ -78,10 +78,10 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className={styles.kpiGrid}>
-          <MetricCard label="Total Revenue" value={`KES ${(summary?.total_net_revenue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`} sub="Net sales across all branches" icon={<FaChartLine />} accent="green" delay={0} />
-          <MetricCard label="Active Branches" value={summary?.total_branches ?? 0} sub="Reporting locations" icon={<FaStore />} accent="blue" delay={80} />
-          <MetricCard label="Unique Products" value={(summary?.total_unique_products ?? 0).toLocaleString()} sub="Distinct SKUs tracked" icon={<FaBox />} accent="amber" delay={160} />
-          <MetricCard label="Transactions" value={(summary?.total_rows ?? 0).toLocaleString()} sub="Total POS records" icon={<FaReceipt />} accent="violet" delay={240} />
+          <MetricCard label="Total Revenue" value={`KES ${(summary?.total_net_revenue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`} sub="Net sales across all branches" icon={<FaChartLine />} delay={0} />
+          <MetricCard label="Active Branches" value={summary?.total_branches ?? 0} sub="Reporting locations" icon={<FaStore />} delay={80} />
+          <MetricCard label="Unique Products" value={(summary?.total_unique_products ?? 0).toLocaleString()} sub="Distinct SKUs tracked" icon={<FaBox />} delay={160} />
+          <MetricCard label="Transactions" value={(summary?.total_rows ?? 0).toLocaleString()} sub="Total POS records" icon={<FaReceipt />} delay={240} />
         </div>
       )}
 
