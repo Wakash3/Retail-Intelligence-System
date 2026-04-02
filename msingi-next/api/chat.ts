@@ -1,4 +1,3 @@
-//Use system prompts to guide the AI model
 # Msingi Retail Intelligence — Nuru AI Analyst (Groq)
 
 from fastapi import APIRouter, HTTPException, Request, Depends
@@ -11,6 +10,8 @@ from sqlalchemy import create_engine, text
 from api.auth import get_current_user
 import os
 import logging
+import traceback  # FIX 7: moved to top-level import
+
 router = APIRouter()
 logger = logging.getLogger("msingi.gladwell")
 limiter = Limiter(key_func=get_remote_address)
@@ -19,9 +20,23 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
     logger.warning("GROQ_API_KEY not set — Gladwell will be unavailable")
 
+
+# ─────────────────────────────────────────
+# HELPER: Safe SQLAlchemy row → dict
+# ─────────────────────────────────────────
+
+def row_to_dict(row) -> dict:
+    """Convert a SQLAlchemy Row to a plain dict — supports both 1.x and 2.x."""
+    try:
+        return dict(row._mapping)       # SQLAlchemy 2.x
+    except AttributeError:
+        return dict(row._asdict())      # SQLAlchemy 1.x
+
+
 # ─────────────────────────────────────────
 # MODELS
 # ─────────────────────────────────────────
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -41,6 +56,7 @@ class ChatMessage(BaseModel):
             raise ValueError("Message too long (max 2000 chars)")
         return v
 
+
 class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     system: str = ""
@@ -55,15 +71,23 @@ class ChatRequest(BaseModel):
             return v[:3000]
         return v
 
+
 # ─────────────────────────────────────────
 # LIVE KPI CONTEXT LOADER
 # ─────────────────────────────────────────
+
 def get_live_kpi_context() -> str:
     """Pull live KPIs from PostgreSQL and format as context for Gladwell."""
     try:
-        engine = create_engine(os.getenv("DB_URL"), pool_pre_ping=True)
+        db_url = os.getenv("DB_URL")
+        if not db_url:
+            # FIX 6: Catch missing DB_URL early with a clear error
+            raise ValueError("DB_URL environment variable is not set")
+
+        engine = create_engine(db_url, pool_pre_ping=True)
+
         with engine.connect() as conn:
-            summary = conn.execute(text("""
+            summary_row = conn.execute(text("""
                 SELECT
                     COUNT(DISTINCT branch)             AS total_branches,
                     COUNT(DISTINCT sku_code)           AS total_products,
@@ -73,7 +97,7 @@ def get_live_kpi_context() -> str:
                 FROM pos_sales
             """)).fetchone()
 
-            branches = conn.execute(text("""
+            branch_rows = conn.execute(text("""
                 SELECT
                     branch,
                     ROUND(SUM(net_sale)::NUMERIC, 2)   AS revenue,
@@ -84,7 +108,7 @@ def get_live_kpi_context() -> str:
                 ORDER BY revenue DESC
             """)).fetchall()
 
-            low_margin = conn.execute(text("""
+            low_margin_rows = conn.execute(text("""
                 SELECT product_name, branch,
                        ROUND(AVG(margin_pct)::NUMERIC, 2) AS avg_margin
                 FROM pos_sales
@@ -94,7 +118,7 @@ def get_live_kpi_context() -> str:
                 LIMIT 5
             """)).fetchall()
 
-            top_products = conn.execute(text("""
+            top_product_rows = conn.execute(text("""
                 SELECT product_name,
                        ROUND(SUM(net_sale)::NUMERIC, 2) AS revenue
                 FROM pos_sales
@@ -103,7 +127,7 @@ def get_live_kpi_context() -> str:
                 LIMIT 5
             """)).fetchall()
 
-            stockout = conn.execute(text("""
+            stockout_rows = conn.execute(text("""
                 SELECT product_name, branch,
                        SUM(quantity) AS total_qty
                 FROM pos_sales
@@ -113,7 +137,7 @@ def get_live_kpi_context() -> str:
                 LIMIT 5
             """)).fetchall()
 
-            departments = conn.execute(text("""
+            dept_rows = conn.execute(text("""
                 SELECT department,
                        ROUND(SUM(net_sale)::NUMERIC, 2)   AS revenue,
                        ROUND(AVG(margin_pct)::NUMERIC, 2) AS avg_margin
@@ -124,48 +148,58 @@ def get_live_kpi_context() -> str:
                 LIMIT 5
             """)).fetchall()
 
-        # Clean up data for formatting (replace None with 0)
-        class CleanRow:
-            def __init__(self, row):
-                if row:
-                    self.__dict__.update({
-                        k: (v if v is not None else 0) 
-                        for k, v in row._asdict().items()
-                    })
-                else:
-                    self.total_branches = 0
-                    self.total_products = 0
-                    self.total_revenue = 0
-                    self.avg_margin = 0
-                    self.latest_date = "N/A"
-        
-        c_summary = CleanRow(summary)
+        # ── FIX 1 & 2: Convert ALL rows to plain dicts immediately ──
+        # Replaces row._asdict() (1.x only) and raw attribute access.
+        # Every row is a safe plain dict from this point on.
+        summary      = row_to_dict(summary_row) if summary_row else {}
+        branches     = [row_to_dict(r) for r in branch_rows]
+        low_margin   = [row_to_dict(r) for r in low_margin_rows]
+        top_products = [row_to_dict(r) for r in top_product_rows]
+        stockouts    = [row_to_dict(r) for r in stockout_rows]
+        departments  = [row_to_dict(r) for r in dept_rows]
+
+        # ── Summary scalars (FIX 2: use converted dict, not raw row) ──
+        total_branches = summary.get("total_branches") or 0
+        total_products = summary.get("total_products") or 0
+        total_revenue  = float(summary.get("total_revenue") or 0)
+        avg_margin     = float(summary.get("avg_margin") or 0)
+        latest_date    = summary.get("latest_date") or "N/A"
+
+        # ── FIX 3, 4, 5: All list rows accessed safely via dict.get() ──
 
         branch_lines = "\n".join([
-            f"  - {r.branch or 'N/A'}: KES {float(r.revenue or 0):,.0f} revenue | "
-            f"{float(r.avg_margin or 0):.1f}% avg margin | {int(getattr(r, 'products', 0))} products"
+            f"  - {r.get('branch') or 'N/A'}: "
+            f"KES {float(r.get('revenue') or 0):,.0f} revenue | "
+            f"{float(r.get('avg_margin') or 0):.1f}% avg margin | "
+            f"{int(r.get('products') or 0)} products"
             for r in branches
-        ])
+        ]) or "  No branch data"
 
         low_margin_lines = "\n".join([
-            f"  - {r.product_name or 'Unknown'} @ {r.branch or 'N/A'}: {float(r.avg_margin or 0):.1f}% margin"
+            f"  - {r.get('product_name') or 'Unknown'} @ {r.get('branch') or 'N/A'}: "
+            f"{float(r.get('avg_margin') or 0):.1f}% margin"
             for r in low_margin
         ]) or "  None detected"
 
         top_product_lines = "\n".join([
-            f"  - {r.product_name or 'Unknown'}: KES {float(r.revenue or 0):,.0f}"
+            f"  - {r.get('product_name') or 'Unknown'}: "
+            f"KES {float(r.get('revenue') or 0):,.0f}"
             for r in top_products
-        ])
+        ]) or "  No product data"
 
         stockout_lines = "\n".join([
-            f"  - {r.product_name} @ {r.branch}: {int(r.total_qty or 0)} units remaining"
-            for r in stockout
+            # FIX 4: product_name and branch guarded against None
+            f"  - {r.get('product_name') or 'Unknown'} @ {r.get('branch') or 'N/A'}: "
+            f"{int(r.get('total_qty') or 0)} units remaining"
+            for r in stockouts
         ]) or "  None detected"
 
         dept_lines = "\n".join([
-            f"  - {r.department}: KES {float(r.revenue or 0):,.0f} | {float(r.avg_margin or 0):.1f}% margin"
+            f"  - {r.get('department') or 'Unknown'}: "
+            f"KES {float(r.get('revenue') or 0):,.0f} | "
+            f"{float(r.get('avg_margin') or 0):.1f}% margin"
             for r in departments
-        ])
+        ]) or "  No department data"
 
         context = f"""
 You are Gladwell — an expert retail data analyst for Msingi Retail System, a multi-branch retail
@@ -180,11 +214,11 @@ commas. If asked something outside retail operations, politely redirect to
 business topics.
 
 === LIVE DATA SNAPSHOT ===
-Latest data date : {summary.latest_date or "N/A"}
-Total branches   : {c_summary.total_branches}
-Total products   : {c_summary.total_products}
-Total revenue    : KES {float(c_summary.total_revenue):,.0f}
-Average margin   : {float(c_summary.avg_margin):.1f}%
+Latest data date : {latest_date}
+Total branches   : {total_branches}
+Total products   : {total_products}
+Total revenue    : KES {total_revenue:,.0f}
+Average margin   : {avg_margin:.1f}%
 
 === BRANCH PERFORMANCE (ranked by revenue) ===
 {branch_lines}
@@ -216,6 +250,7 @@ Average margin   : {float(c_summary.avg_margin):.1f}%
 # ─────────────────────────────────────────
 # STANDARD CHAT ENDPOINT
 # ─────────────────────────────────────────
+
 @router.post("/chat")
 @limiter.limit("20/minute")
 async def chat(
@@ -255,9 +290,11 @@ async def chat(
         logger.error(f"Groq API error: {e}")
         return {"reply": "Gladwell is temporarily unavailable. Please try again later."}
 
+
 # ─────────────────────────────────────────
-# GLADWELL ANALYST ENDPOINT (UPDATED WITH FULL ERROR LOGGING)
+# GLADWELL ANALYST ENDPOINT
 # ─────────────────────────────────────────
+
 @router.post("/chat/analyst")
 @limiter.limit("15/minute")
 async def chat_analyst(
@@ -296,8 +333,6 @@ async def chat_analyst(
         return {"reply": reply}
 
     except Exception as e:
-        # Log the full error with traceback for debugging
-        import traceback
         error_trace = traceback.format_exc()
         logger.error(f"Gladwell Groq error:\n{error_trace}")
         return {"reply": f"Groq API error: {type(e).__name__} - {str(e)}"}
